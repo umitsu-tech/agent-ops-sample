@@ -87,6 +87,36 @@ def collect_turns(client, hours: int = LOOKBACK_HOURS) -> dict[str, dict]:
     return grouped
 
 
+RESULTS_DIR = Path(__file__).resolve().parents[1] / "results"
+
+
+def save_results(rows: list[dict]) -> None:
+    """採点結果を手元にも残す。
+
+    Langfuse の無料枠はトレースの保持が30日なので、原稿を書いている間に元データが消える。
+    引用するつもりの数字は、その場でファイルに落としておく。
+    """
+    if not rows:
+        return
+    RESULTS_DIR.mkdir(exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+
+    (RESULTS_DIR / f"{stamp}.json").write_text(
+        json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
+    header = "| 質問 | 呼んだ道具 | 根拠 | 判定 | 道具の選択 | 確信度 |"
+    lines = [header, "|---|---|---|---|---|---|"]
+    for row in rows:
+        lines.append(
+            f"| {row['question']} | {'、'.join(row['tools']) or 'なし'} | "
+            f"{row['grounded']:.2f} | {row['grounded_verdict']} | "
+            f"{row['tool_choice']} | {row['tool_choice_confidence']} |"
+        )
+    (RESULTS_DIR / f"{stamp}.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"\n結果を残しました: results/{stamp}.md")
+
+
 def main() -> None:
     client = get_client()
     if not client.auth_check():
@@ -98,6 +128,7 @@ def main() -> None:
         print("採点できるトレースがありませんでした。先にエージェントを動かしてください。")
         return
 
+    rows: list[dict] = []
     for trace_id, turn in turns.items():
         if not turn["question"]:
             continue
@@ -122,6 +153,15 @@ def main() -> None:
             comment=f"確信度 {verdict['tool_choice_confidence']}",
         )
 
+        rows.append(
+            {
+                "trace_id": trace_id,
+                "question": turn["question"],
+                "answer": turn["answer"],
+                "tools": [t["name"] for t in turn["tools"]],
+                **verdict,
+            }
+        )
         print(
             f"{trace_id[:12]}  {turn['question'][:28]:<30} "
             f"根拠 {verdict['grounded']:.2f}({verdict['grounded_verdict']}) "
@@ -129,6 +169,7 @@ def main() -> None:
         )
 
     client.flush()
+    save_results(rows)
 
 
 if __name__ == "__main__":
