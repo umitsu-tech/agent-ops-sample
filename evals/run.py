@@ -21,6 +21,9 @@ from jev_judge import judge  # noqa: E402
 
 # 取りたい項目はグループで指定する。既定では入出力が付いてこないので io を足す。
 FIELDS = "core,basic,io"
+# Langfuse の画面にそのまま並ぶ名前。日本語にしておくと読み返すときに楽
+SCORE_GROUNDED = "根拠"
+SCORE_TOOL_CHOICE = "道具の選択"
 LOOKBACK_HOURS = 2
 
 
@@ -122,7 +125,7 @@ def already_scored(client, trace_id: str) -> bool:
 
     採点するたびにスコアが積み上がると、画面で同じ行が何度も並んで読めなくなる。
     """
-    scored = client.api.scores_v3.get_many_v3(trace_id=trace_id, name="grounded", limit=1)
+    scored = client.api.scores_v3.get_many_v3(trace_id=trace_id, name=SCORE_GROUNDED, limit=1)
     return len(scored.data) > 0
 
 
@@ -152,14 +155,14 @@ def main() -> None:
 
         # 数値と判定の両方を残す。あとから閾値を変えて絞り込めるようにするため。
         client.create_score(
-            name="grounded",
+            name=SCORE_GROUNDED,
             value=verdict["grounded"],
             trace_id=trace_id,
             data_type="NUMERIC",
             comment=f"{verdict['grounded_verdict']} / 確信度 {verdict['grounded_confidence']}",
         )
         client.create_score(
-            name="tool_choice",
+            name=SCORE_TOOL_CHOICE,
             value=verdict["tool_choice"] or "unknown",
             trace_id=trace_id,
             data_type="CATEGORICAL",
