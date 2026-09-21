@@ -117,6 +117,15 @@ def save_results(rows: list[dict]) -> None:
     print(f"\n結果を残しました: results/{stamp}.md")
 
 
+def already_scored(client, trace_id: str) -> bool:
+    """このトレースをもう採点したか。
+
+    採点するたびにスコアが積み上がると、画面で同じ行が何度も並んで読めなくなる。
+    """
+    scored = client.api.scores_v3.get_many_v3(trace_id=trace_id, name="grounded", limit=1)
+    return len(scored.data) > 0
+
+
 def main() -> None:
     client = get_client()
     if not client.auth_check():
@@ -129,8 +138,12 @@ def main() -> None:
         return
 
     rows: list[dict] = []
+    skipped = 0
     for trace_id, turn in turns.items():
         if not turn["question"]:
+            continue
+        if already_scored(client, trace_id):
+            skipped += 1
             continue
 
         conversation = f"お客さま: {turn['question']}\n担当者: {turn['answer']}"
@@ -169,6 +182,8 @@ def main() -> None:
         )
 
     client.flush()
+    if skipped:
+        print(f"採点済みだったので飛ばしました: {skipped} 件")
     save_results(rows)
 
 
