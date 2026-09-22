@@ -11,6 +11,43 @@ import {
 import { CfnOutput, Stack, type StackProps } from 'aws-cdk-lib';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { Construct } from 'constructs';
+import * as fs from 'fs';
+import * as path from 'path';
+import { parseEnv } from 'util';
+
+/**
+ * Langfuse にトレースを送る Runtime の名前（agentcore.json の runtimes[].name）。
+ */
+const LANGFUSE_RUNTIME_NAME = 'SupportAgent';
+
+/**
+ * Langfuse の OTLP の送り先と認証ヘッダーを組み立てる（agent-ops-sample で足した処理）。
+ *
+ * 鍵を agentcore.json に書くとそのままコミットされるので、synth のたびにリポジトリ直下の .env
+ * （gitignore 済み）から読む。同じ名前の環境変数があればそちらを優先する（main.py の load_dotenv と同じ順）。
+ * 鍵が無いままデプロイすると、Runtime は動くのにトレースだけ届かなくなるので、その場で止める。
+ */
+function langfuseOtlpEnv(): Record<string, string> {
+  // CLI は agentcore/cdk/ を作業ディレクトリにして CDK を動かす（bin/cdk.ts と同じ前提）
+  const envPath = path.resolve(process.cwd(), '..', '..', '.env');
+  const fromFile = fs.existsSync(envPath) ? parseEnv(fs.readFileSync(envPath, 'utf-8')) : {};
+  const read = (name: string): string | undefined => process.env[name] || fromFile[name] || undefined;
+
+  const publicKey = read('LANGFUSE_PUBLIC_KEY');
+  const secretKey = read('LANGFUSE_SECRET_KEY');
+  const baseUrl = read('LANGFUSE_BASE_URL');
+  if (!publicKey || !secretKey || !baseUrl) {
+    throw new Error(
+      `Langfuse の設定が足りません。${envPath} に LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY / LANGFUSE_BASE_URL を書いてください`
+    );
+  }
+
+  const auth = Buffer.from(`${publicKey}:${secretKey}`).toString('base64');
+  return {
+    OTEL_EXPORTER_OTLP_ENDPOINT: `${baseUrl.replace(/\/+$/, '')}/api/public/otel`,
+    OTEL_EXPORTER_OTLP_HEADERS: `Authorization=Basic ${auth},x-langfuse-ingestion-version=4`,
+  };
+}
 
 /**
  * Harness deployment config: role-scoped fields (for IAM role + container build)
@@ -112,6 +149,14 @@ export class AgentCoreStack extends Stack {
       appProps.credentials = credentials;
     }
     this.application = new AgentCoreApplication(this, 'Application', appProps as any);
+
+    // Langfuse に送るための送り先と鍵を Runtime の環境変数に足す（agent-ops-sample で足した処理）
+    const langfuseRuntime = this.application.environments.get(LANGFUSE_RUNTIME_NAME);
+    if (langfuseRuntime) {
+      for (const [name, value] of Object.entries(langfuseOtlpEnv())) {
+        langfuseRuntime.runtime.addEnvironmentVariable(name, value);
+      }
+    }
 
     // Create AgentCoreMcp if there are gateways configured
     if (mcpSpec?.agentCoreGateways && mcpSpec.agentCoreGateways.length > 0) {
