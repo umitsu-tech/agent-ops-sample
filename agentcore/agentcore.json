@@ -23,6 +23,14 @@
         {
           "name": "DISABLE_ADOT_OBSERVABILITY",
           "value": "true"
+        },
+        {
+          "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
+          "value": "https://jp.cloud.langfuse.com/api/public/otel"
+        },
+        {
+          "name": "LANGFUSE_SSM_PARAMETER",
+          "value": "/agent-ops-sample/langfuse"
         }
       ]
     }

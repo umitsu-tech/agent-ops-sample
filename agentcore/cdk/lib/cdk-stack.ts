@@ -8,46 +8,19 @@ import {
   type CustomJWTAuthorizerConfig,
   type HarnessDeploymentConfig,
 } from '@aws/agentcore-cdk';
-import { CfnOutput, Stack, type StackProps } from 'aws-cdk-lib';
+import { ArnFormat, CfnOutput, Stack, type StackProps } from 'aws-cdk-lib';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { Construct } from 'constructs';
-import * as fs from 'fs';
-import * as path from 'path';
-import { parseEnv } from 'util';
 
 /**
- * Langfuse にトレースを送る Runtime の名前（agentcore.json の runtimes[].name）。
+ * Langfuse の鍵を SSM Parameter Store から読む Runtime の名前（agentcore.json の runtimes[].name）。
  */
 const LANGFUSE_RUNTIME_NAME = 'SupportAgent';
 
 /**
- * Langfuse の OTLP の送り先と認証ヘッダーを組み立てる（agent-ops-sample で足した処理）。
- *
- * 鍵を agentcore.json に書くとそのままコミットされるので、synth のたびにリポジトリ直下の .env
- * （gitignore 済み）から読む。同じ名前の環境変数があればそちらを優先する（main.py の load_dotenv と同じ順）。
- * 鍵が無いままデプロイすると、Runtime は動くのにトレースだけ届かなくなるので、その場で止める。
+ * 鍵を置く SSM パラメータの名前を渡す環境変数（agentcore.json の envVars に書く）。
  */
-function langfuseOtlpEnv(): Record<string, string> {
-  // CLI は agentcore/cdk/ を作業ディレクトリにして CDK を動かす（bin/cdk.ts と同じ前提）
-  const envPath = path.resolve(process.cwd(), '..', '..', '.env');
-  const fromFile = fs.existsSync(envPath) ? parseEnv(fs.readFileSync(envPath, 'utf-8')) : {};
-  const read = (name: string): string | undefined => process.env[name] || fromFile[name] || undefined;
-
-  const publicKey = read('LANGFUSE_PUBLIC_KEY');
-  const secretKey = read('LANGFUSE_SECRET_KEY');
-  const baseUrl = read('LANGFUSE_BASE_URL');
-  if (!publicKey || !secretKey || !baseUrl) {
-    throw new Error(
-      `Langfuse の設定が足りません。${envPath} に LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY / LANGFUSE_BASE_URL を書いてください`
-    );
-  }
-
-  const auth = Buffer.from(`${publicKey}:${secretKey}`).toString('base64');
-  return {
-    OTEL_EXPORTER_OTLP_ENDPOINT: `${baseUrl.replace(/\/+$/, '')}/api/public/otel`,
-    OTEL_EXPORTER_OTLP_HEADERS: `Authorization=Basic ${auth},x-langfuse-ingestion-version=4`,
-  };
-}
+const LANGFUSE_SSM_PARAMETER_ENV = 'LANGFUSE_SSM_PARAMETER';
 
 /**
  * Harness deployment config: role-scoped fields (for IAM role + container build)
@@ -150,12 +123,28 @@ export class AgentCoreStack extends Stack {
     }
     this.application = new AgentCoreApplication(this, 'Application', appProps as any);
 
-    // Langfuse に送るための送り先と鍵を Runtime の環境変数に足す（agent-ops-sample で足した処理）
+    // Runtime が SSM Parameter Store から Langfuse の鍵を読めるようにする（agent-ops-sample で足した処理）。
+    // 鍵そのものはテンプレートに入れず、実行時に runtime.py が読む。ここで渡すのは読む権限だけ。
+    // パラメータ名は agentcore.json の envVars から取り、権限はそのパラメータ1つに絞る。
+    // aws/ssm（AWS 管理キー）で暗号化する前提なので kms:Decrypt は足さない。このキーは同じアカウントの
+    // プリンシパルに Parameter Store 経由の復号を許可している。
     const langfuseRuntime = this.application.environments.get(LANGFUSE_RUNTIME_NAME);
-    if (langfuseRuntime) {
-      for (const [name, value] of Object.entries(langfuseOtlpEnv())) {
-        langfuseRuntime.runtime.addEnvironmentVariable(name, value);
-      }
+    const parameterName = langfuseRuntime?.agent.envVars?.find(v => v.name === LANGFUSE_SSM_PARAMETER_ENV)?.value;
+    if (langfuseRuntime && parameterName) {
+      langfuseRuntime.runtime.addToPolicy(
+        new iam.PolicyStatement({
+          actions: ['ssm:GetParameter'],
+          resources: [
+            this.formatArn({
+              service: 'ssm',
+              resource: 'parameter',
+              // ARN では先頭の / を重ねない（/agent-ops-sample/langfuse → parameter/agent-ops-sample/langfuse）
+              resourceName: parameterName.replace(/^\/+/, ''),
+              arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
+            }),
+          ],
+        })
+      );
     }
 
     // Create AgentCoreMcp if there are gateways configured
