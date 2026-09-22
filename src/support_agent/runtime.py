@@ -13,6 +13,9 @@ ADOT が先に送信先を握ると、ここで設定しても「Overriding of c
 - 送り先: 環境変数 OTEL_EXPORTER_OTLP_ENDPOINT（Runtime では agentcore.json で渡す）
 - 鍵: 環境変数 LANGFUSE_SSM_PARAMETER があれば、その名前の SSM パラメータ（SecureString）から起動時に読む。
   無ければ手元で動かしているとみなし、main.py と同じく .env から読む
+
+規程の検索先（Knowledge Base の ID）は、環境変数 KNOWLEDGE_BASE_ID で受け取る。Runtime では CDK のスタックが渡す。
+手元では .env に書いておく（LANGFUSE_SSM_PARAMETER が無いときに .env を読み込む）。
 """
 
 import base64
@@ -85,7 +88,7 @@ else:
 
 app = BedrockAgentCoreApp()
 
-DEFAULT_QUESTION = "注文した商品がまだ届きません。注文番号は A-1002 です"
+DEFAULT_QUESTION = "G4 で大阪に出張します。1泊いくらまでのホテルに泊まれますか"
 
 
 @app.entrypoint
