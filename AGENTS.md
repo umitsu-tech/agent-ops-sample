@@ -45,13 +45,13 @@
 
 最終更新: 2026-09-23
 
-- 完了（Issue #1、PR #2。未マージ）: AgentCore Runtime から Langfuse に送る配管。2026-09-23 に実機で1トレース届くことを確認し、スタック・SSM パラメータ・ロググループは削除済み
-- 進行中（Issue #3、PR #4。PR #2 の上に積んでいる。未マージ）: 題材を社内規程の Q&A エージェントに作り直した
+- 完了（Issue #1、PR #2。2026-09-23 にマージ済み）: AgentCore Runtime から Langfuse に送る配管。2026-09-23 に実機で1トレース届くことを確認し、スタック・SSM パラメータ・ロググループは削除済み
+- 進行中（Issue #3、PR #4。ベースは main。未マージ、Codex のレビュー中）: 題材を社内規程の Q&A エージェントに作り直した
   - 済み: 規程25本と罠の設計（`docs/corpus-design.md`）、道具3つ、システムプロンプト、KB（S3 Vectors）一式と取り込み開始の CDK、Runtime の zip から `.env` を外す対応、evals の最小限の手直し、README
   - 手元で確かめたこと: 道具の単体テスト（botocore の Stubber）、CDK のテスト、`cdk synth` と `cdkd synth`（25リソース、テンプレートと zip に鍵が入っていないこと）、`agentcore validate`、検索を手元の簡易検索に差し替えた Nova 2 Lite での会話（罠 1 と 5 で実際に誤答が出た）
   - まだ: AWS へのデプロイ（`cdkd bootstrap` / `cdkd deploy`）、本物の KB での検索と取り込み、Runtime の呼び出し、新しいトレースでの採点
-- 要対応: 2026-09-23 に `agentcore deploy` した Runtime の zip（`.env` 入り）が、CDK のアセット用バケット（`cdk-hnb659fds-assets-<アカウントID>-us-east-1`、バージョニング有効）に残っている。オブジェクトの全バージョンを消し、Langfuse と TypeSafe の鍵を入れ替える
-- 次の一歩: PR #2 と PR #4 をマージするか判断する（PR #2 を先にマージし、PR #4 のベースを main に切り替える）。そのあと README の手順で `cdkd bootstrap` → `cdkd diff` → `cdkd deploy` → 取り込みの確認 → 呼び出し → Langfuse で確認 → 採点
+- 対応済み: 2026-09-23 に `agentcore deploy` した Runtime の zip に `.env` が入っていた。CDK のアセット用バケット（`cdk-hnb659fds-assets-<アカウントID>-us-east-1`）の zip（1バージョンのみ）、手元の一時 zip、`agentcore/cdk/cdk.out` の写しは削除した。鍵は入れ替えない（個人アカウントの非公開バケットに約40分置かれていただけのため）
+- 次の一歩: PR #4 の Codex のレビュー結果に対応し、マージするか判断する。そのあと README の手順で `cdkd bootstrap` → `cdkd diff` → `cdkd deploy` → 取り込みの確認 → 呼び出し → Langfuse で確認 → 採点
 - その次: 罠の表を正解つきの質問集にして、正しさ・引き継ぎ・出典の採点を足す。評価の観点（道具の選択と引数を分ける、セッション単位の用件達成、回答の関連性）も見直す。改定の演習（`docs/corpus-design.md`）を行う
 - 未着手: 本文の執筆
 
