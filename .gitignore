@@ -4,3 +4,7 @@ __pycache__/
 *.pyc
 .uv/
 results/
+
+# agentcore package / deploy が作る zip と作業用フォルダ（コードの置き場をリポジトリ直下にしているため、ここに出る）
+agentcore/*.zip
+agentcore/*/staging/
