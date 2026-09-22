@@ -25,7 +25,8 @@
 - observations API は `fields="core,basic,io"` を指定しないと、道具の名前か入出力のどちらかが欠ける
 - 同じトレースを何度採点してもスコアが積み上がるので、採点済みは飛ばす
 - AgentCore Runtime は既定で ADOT を仕込むので、そのままだとトレースが Langfuse に届かない。`agentcore.json` の `instrumentation.enableOtel: false` と `DISABLE_ADOT_OBSERVABILITY=true` の両方で切る
-- `agentcore.json` の `envVars` は平文でコミットされる。Langfuse の鍵は `agentcore/cdk/lib/cdk-stack.ts` が synth のたびに `.env` から足す
+- `agentcore.json` の `envVars` は平文でコミットされ、テンプレートにも残る。Langfuse の鍵は SSM Parameter Store の SecureString（`/agent-ops-sample/langfuse`、JSON 1つ）に置き、`runtime.py` が起動時に読む。ロールに足すのはそのパラメータの `ssm:GetParameter` だけ（`aws/ssm` キーなので `kms:Decrypt` は不要）
+- AWS CLI の `file://` はパイプや標準入力を読めない（2.35.14 で確認）。鍵を `put-parameter` に渡すときは、0600 の一時ファイルを経由する
 - `agentcore dev` は条件によって起動前にデプロイを走らせる。手元で試すときは `runtime.py` を直接起動する
 
 ## 現在の状況
@@ -34,8 +35,8 @@
 
 - 完了: エージェント本体と道具3つ、Langfuse への送信、Jev での採点、結果のローカル保存、採点済みの重複防止
 - 実際に採点できた例: 根拠 0.98 / 0.94（道具の結果どおり）、0.28 / 0.31（道具が返していないことを答えている）
-- 進行中: AgentCore Runtime から Langfuse に送る準備（Issue #1）。入口 `runtime.py`、`agentcore/` の設定、README の手順まで作り、手元での起動と Langfuse への到達は確認済み。まだデプロイしていない
-- 次の一歩: `agentcore deploy --diff` で差分を確かめてからデプロイし、Runtime 経由のトレースが Langfuse に届くか確かめる
+- 進行中: AgentCore Runtime から Langfuse に送る準備（Issue #1、PR #2）。入口 `runtime.py`、`agentcore/` の設定、鍵を SSM から読む仕組み、README の手順まで作った。手元での起動（`.env` から読む経路）と Langfuse への到達は確認済み。SSM のパラメータはまだ作っておらず、デプロイもしていない
+- 次の一歩: README の手順で SSM のパラメータを作り、`agentcore deploy --diff` で差分を確かめてからデプロイする。Runtime 経由のトレースが Langfuse に届くか確かめる
 - その次: 評価の観点を見直す。いまの2観点（根拠・道具の選択）を、標準的な枠組みに合わせて「道具の選択」と「引数」に分け、セッション単位の用件達成と回答の関連性を足す
 - 未着手: 本文の執筆
 

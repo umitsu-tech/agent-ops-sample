@@ -48,7 +48,7 @@ uv run python evals/run.py
 |---|---|---|
 | 入口 | `src/support_agent/main.py` | `src/support_agent/runtime.py` |
 | 送り方 | Langfuse SDK を先に読み込み、SDK に送ってもらう | Strands の `StrandsTelemetry` で Langfuse の OTLP エンドポイントへ直接送る |
-| 鍵の渡し方 | `.env` を読む | デプロイのときに `.env` から組み立てた環境変数 |
+| 鍵の渡し方 | `.env` を読む | 起動時に SSM Parameter Store の SecureString から読む |
 | 送り切り | 最後に `langfuse.flush()` | 呼び出しのたびに `force_flush()` |
 
 Runtime では呼び出しのたびに送り切ります。送り切る前にセッションが止められると、トレースが欠けるためです。
@@ -64,14 +64,50 @@ AgentCore Runtime は既定で ADOT（AWS Distro for OpenTelemetry）を仕込�
 
 ### Langfuse の鍵の渡し方
 
-`agentcore.json` の `envVars` は平文で、リポジトリにそのままコミットされます。そのため鍵はここに書かず、`agentcore/cdk/lib/cdk-stack.ts` が synth のたびに `.env` から組み立てて、Runtime の環境変数に足しています。
+鍵は SSM Parameter Store の SecureString に置き、Runtime が起動するときに読みます。`agentcore.json` の `envVars` は平文のままリポジトリにコミットされ、CloudFormation のテンプレートと Runtime の設定にも残るので、鍵はそこに書きません。
 
-- `OTEL_EXPORTER_OTLP_ENDPOINT`: `LANGFUSE_BASE_URL` に `/api/public/otel` を付けたもの
-- `OTEL_EXPORTER_OTLP_HEADERS`: `Authorization=Basic <base64(公開鍵:秘密鍵)>,x-langfuse-ingestion-version=4`
+Runtime に環境変数として渡すのは、秘密でない次の3つだけです（`agentcore/agentcore.json`）。
 
-`.env` に鍵が無いと、synth の時点で止まります。
+| 環境変数 | 値 |
+|---|---|
+| `DISABLE_ADOT_OBSERVABILITY` | `true` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `https://jp.cloud.langfuse.com/api/public/otel` |
+| `LANGFUSE_SSM_PARAMETER` | `/agent-ops-sample/langfuse` |
 
-なお、この値は CloudFormation のテンプレートと Runtime の設定には平文で残ります。本番では Secrets Manager や AgentCore Identity に置き、実行時に読み出す形を検討してください。
+`runtime.py` は起動時に `LANGFUSE_SSM_PARAMETER` のパラメータを読みます。そこから `Authorization=Basic <base64(公開鍵:秘密鍵)>,x-langfuse-ingestion-version=4` を組み立て、`OTEL_EXPORTER_OTLP_HEADERS` に入れてから送信の設定を作ります。`LANGFUSE_SSM_PARAMETER` が無いとき（手元で動かすとき）は、`.env` から読みます。
+
+パラメータは公開鍵と秘密鍵をまとめた1つの JSON にしています。読み出しが1回で済み、権限も1つのパラメータに絞れるためです。
+
+```json
+{"public_key": "pk-lf-...", "secret_key": "sk-lf-..."}
+```
+
+Runtime のロールに足している権限は、このパラメータに対する `ssm:GetParameter` だけです（`agentcore/cdk/lib/cdk-stack.ts`）。暗号化は AWS 管理キー `aws/ssm` に任せるので、`kms:Decrypt` は足していません。`aws/ssm` のキーポリシーは、同じアカウントのプリンシパルに Parameter Store 経由の復号を許可しているためです。そのぶん、このアカウントでパラメータを読める人は誰でも復号できます。復号できる人を絞りたいときは、カスタマー管理キーで暗号化し、そのキーへの `kms:Decrypt` を別に付けてください（[SecureString の復号を制限する](https://docs.aws.amazon.com/systems-manager/latest/userguide/ps-restrict-decryption.html)）。
+
+### 鍵を SSM Parameter Store に置く（最初に1回）
+
+リポジトリ直下で実行します。鍵は `.env` から読み、画面にもコマンドラインの引数にも出しません。AWS CLI の `file://` はパイプを読めないので、自分だけが読める一時ファイルを経由し、終わったら消します。
+
+```bash
+(
+  umask 077
+  tmp=$(mktemp)
+  trap 'rm -f "$tmp"' EXIT
+  uv run python - "$tmp" <<'EOF'
+import json, sys
+from dotenv import dotenv_values
+env = dotenv_values(".env")
+value = json.dumps({"public_key": env["LANGFUSE_PUBLIC_KEY"], "secret_key": env["LANGFUSE_SECRET_KEY"]})
+with open(sys.argv[1], "w") as f:
+    json.dump({"Name": "/agent-ops-sample/langfuse", "Type": "SecureString", "Tier": "Standard", "Value": value}, f)
+EOF
+  aws ssm put-parameter --region us-east-1 --cli-input-json "file://$tmp"
+)
+```
+
+表示されるのは `Version` と `Tier` だけです。鍵を入れ替えるときは、`json.dump` に渡す辞書に `"Overwrite": True` を足して、もう一度実行します。
+
+標準のパラメータに料金はかかりません。`aws/ssm` キーがまだ無いリージョンでは、最初の SecureString を作ったときに自動で作られます（AWS 管理キーに月額の料金はかかりません）。
 
 ### デプロイする
 
@@ -93,9 +129,11 @@ agentcore deploy -y
 
 - CloudFormation スタック `AgentCore-agentopssample-default`
 - AgentCore Runtime `agentopssample_SupportAgent`（DEFAULT エンドポイントは Runtime と一緒に作られます）
-- Runtime 用の IAM ロールとポリシー
+- Runtime 用の IAM ロールとポリシー（Bedrock のモデル呼び出し、ログ、`/agent-ops-sample/langfuse` の `ssm:GetParameter` など）
 - CDK の bootstrap で作られた S3 バケットに、コードの zip（約 50MB）とテンプレート
 - 初めて呼び出したときに、CloudWatch Logs のロググループ `/aws/bedrock-agentcore/runtimes/<RuntimeId>-DEFAULT`
+
+SSM のパラメータは、上の手順で自分で作ったもので、スタックには含まれません。パラメータが無いまま呼び出すと、Runtime は起動の時点で `ParameterNotFound` になって止まります。
 
 ### 呼び出す
 
@@ -110,10 +148,9 @@ agentcore invoke "注文した商品がまだ届きません。注文番号は A
 
 `agentcore dev` は、条件によっては起動の前に AWS へのデプロイを走らせます（`--skip-deploy` で止められます）。また、手元用のトレース収集を差し込むため、Langfuse への送信とぶつかります。Runtime の入口を試すだけなら、Runtime と同じようにスクリプトとして直接起動するほうが確実です。
 
+`LANGFUSE_SSM_PARAMETER` を設定していなければ、鍵と送り先は `.env` から読むので、SSM のパラメータが無くても動きます。
+
 ```bash
-set -a; . ./.env; set +a
-export OTEL_EXPORTER_OTLP_ENDPOINT="${LANGFUSE_BASE_URL%/}/api/public/otel"
-export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Basic $(printf '%s:%s' "$LANGFUSE_PUBLIC_KEY" "$LANGFUSE_SECRET_KEY" | base64 | tr -d '\n'),x-langfuse-ingestion-version=4"
 uv run python src/support_agent/runtime.py
 ```
 
@@ -131,6 +168,7 @@ curl -s -X POST http://127.0.0.1:8080/invocations \
 agentcore remove agent --name SupportAgent -y
 agentcore deploy -y                    # Runtime がなくなるので、スタックごと消える
 git restore agentcore/agentcore.json   # 設定は元に戻しておく
+aws ssm delete-parameter --region us-east-1 --name /agent-ops-sample/langfuse
 ```
 
 CloudWatch Logs のロググループはスタックとは別に作られるので残ります。要らなければ消してください。
