@@ -1,0 +1,50 @@
+{
+  "$schema": "https://schema.agentcore.aws.dev/v1/agentcore.json",
+  "name": "agentopssample",
+  "version": 1,
+  "managedBy": "CDK",
+  "tags": {
+    "agentcore:created-by": "agentcore-cli",
+    "agentcore:project-name": "agentopssample"
+  },
+  "runtimes": [
+    {
+      "name": "SupportAgent",
+      "build": "CodeZip",
+      "entrypoint": "src/support_agent/runtime.py",
+      "codeLocation": "./",
+      "runtimeVersion": "PYTHON_3_13",
+      "networkMode": "PUBLIC",
+      "protocol": "HTTP",
+      "instrumentation": {
+        "enableOtel": false
+      },
+      "envVars": [
+        {
+          "name": "DISABLE_ADOT_OBSERVABILITY",
+          "value": "true"
+        },
+        {
+          "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
+          "value": "https://jp.cloud.langfuse.com/api/public/otel"
+        },
+        {
+          "name": "LANGFUSE_SSM_PARAMETER",
+          "value": "/agent-ops-sample/langfuse"
+        }
+      ]
+    }
+  ],
+  "memories": [],
+  "knowledgeBases": [],
+  "credentials": [],
+  "evaluators": [],
+  "onlineEvalConfigs": [],
+  "agentCoreGateways": [],
+  "policyEngines": [],
+  "configBundles": [],
+  "abTests": [],
+  "harnesses": [],
+  "datasets": [],
+  "payments": []
+}
