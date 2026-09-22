@@ -8,9 +8,13 @@ import {
   type CustomJWTAuthorizerConfig,
   type HarnessDeploymentConfig,
 } from '@aws/agentcore-cdk';
-import { ArnFormat, CfnOutput, Stack, type StackProps } from 'aws-cdk-lib';
+import { ArnFormat, Aspects, CfnOutput, RemovalPolicy, Stack, type StackProps } from 'aws-cdk-lib';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as logs from 'aws-cdk-lib/aws-logs';
 import { Construct } from 'constructs';
+import * as path from 'path';
+import { PolicyKnowledgeBase } from './policy-knowledge-base';
+import { stageRuntimeCode } from './runtime-code';
 
 /**
  * Langfuse の鍵を SSM Parameter Store から読む Runtime の名前（agentcore.json の runtimes[].name）。
@@ -21,6 +25,23 @@ const LANGFUSE_RUNTIME_NAME = 'SupportAgent';
  * 鍵を置く SSM パラメータの名前を渡す環境変数（agentcore.json の envVars に書く）。
  */
 const LANGFUSE_SSM_PARAMETER_ENV = 'LANGFUSE_SSM_PARAMETER';
+
+/**
+ * 社内規程の Knowledge Base を検索する Runtime の名前（agentcore.json の runtimes[].name）。
+ */
+const POLICY_RUNTIME_NAME = 'SupportAgent';
+
+/**
+ * 規程の Markdown を置いたフォルダ。CLI も cdkd も、このアプリを agentcore/cdk をカレントにして動かす
+ * （bin/cdk.ts も同じ前提で ../agentcore.json を読んでいる）。
+ */
+const REPO_ROOT = path.resolve(process.cwd(), '..', '..');
+const POLICY_DOCS_DIR = path.join(REPO_ROOT, 'data', 'policies');
+
+/**
+ * Runtime の zip の元にするフォルダの置き場（agentcore/.gitignore で .cache/* を除外済み）。
+ */
+const RUNTIME_CODE_CACHE_DIR = path.resolve(process.cwd(), '..', '.cache', 'runtime-code');
 
 /**
  * Harness deployment config: role-scoped fields (for IAM role + container build)
@@ -109,9 +130,27 @@ export class AgentCoreStack extends Stack {
 
     const { spec, mcpSpec, credentials, harnesses, connectorParametersByFile, paymentSpec } = props;
 
+    // Runtime の zip に入れるものを絞る（agent-ops-sample で足した処理。理由は runtime-code.ts）。
+    // リポジトリ直下を指している codeLocation を、必要なものだけを写したフォルダに差し替える。
+    const stagedSpec: AgentCoreProjectSpec = {
+      ...spec,
+      runtimes: spec.runtimes.map(runtime =>
+        runtime.name === POLICY_RUNTIME_NAME && runtime.build === 'CodeZip'
+          ? {
+              ...runtime,
+              // スキーマ上は検証済みのパスを表す型（DirectoryPath）なので、写し先の文字列を合わせる
+              codeLocation: stageRuntimeCode(
+                REPO_ROOT,
+                path.join(RUNTIME_CODE_CACHE_DIR, runtime.name)
+              ) as typeof runtime.codeLocation,
+            }
+          : runtime
+      ),
+    };
+
     // Create AgentCoreApplication with all agents and harness roles
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const appProps: Record<string, unknown> = { spec };
+    const appProps: Record<string, unknown> = { spec: stagedSpec };
     if (harnesses?.length) {
       appProps.harnesses = harnesses;
     }
@@ -146,6 +185,38 @@ export class AgentCoreStack extends Stack {
         })
       );
     }
+
+    // 社内規程の Knowledge Base（S3 Vectors）を作り、Runtime から検索できるようにする（agent-ops-sample で足した処理）。
+    // Runtime に渡すのは KB の ID（秘密ではない）と、その KB 1つに対する bedrock:Retrieve だけ。
+    const policyKnowledgeBase = new PolicyKnowledgeBase(this, 'PolicyKnowledgeBase', {
+      sourceDir: POLICY_DOCS_DIR,
+      namePrefix: this.stackName,
+    });
+    const policyRuntime = this.application.environments.get(POLICY_RUNTIME_NAME);
+    if (policyRuntime) {
+      policyRuntime.runtime.addEnvironmentVariable('KNOWLEDGE_BASE_ID', policyKnowledgeBase.knowledgeBaseId);
+      policyRuntime.runtime.addToPolicy(
+        new iam.PolicyStatement({
+          actions: ['bedrock:Retrieve'],
+          resources: [policyKnowledgeBase.knowledgeBaseArn],
+        })
+      );
+    }
+    // アップロードと取り込み開始の Lambda が使うロググループは、CDK の既定では保持期間 731 日で
+    // スタックを消しても残る（Retain）。サンプルなので、スタックと一緒に消えるようにしておく
+    Aspects.of(this).add({
+      visit(node) {
+        if (node instanceof logs.CfnLogGroup) {
+          node.applyRemovalPolicy(RemovalPolicy.DESTROY);
+        }
+      },
+    });
+    // 手元の main.py から同じ KB を使うときや、取り込みの状況を確かめるときに要る値を出しておく
+    new CfnOutput(this, 'PolicyKnowledgeBaseId', { value: policyKnowledgeBase.knowledgeBaseId });
+    new CfnOutput(this, 'PolicyDataSourceId', { value: policyKnowledgeBase.dataSourceId });
+    new CfnOutput(this, 'PolicyDocsBucketName', { value: policyKnowledgeBase.docsBucket.bucketName });
+    new CfnOutput(this, 'PolicyVectorBucketName', { value: policyKnowledgeBase.vectorBucketName });
+    new CfnOutput(this, 'PolicyIndexName', { value: policyKnowledgeBase.indexName });
 
     // Create AgentCoreMcp if there are gateways configured
     if (mcpSpec?.agentCoreGateways && mcpSpec.agentCoreGateways.length > 0) {
