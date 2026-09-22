@@ -37,11 +37,10 @@ uv sync
 ## 流れ
 
 1. Langfuse の鍵を SSM Parameter Store に置く（Runtime で動かすときだけ）
-2. Knowledge Base と Runtime をデプロイする（cdkd か AgentCore CLI）
-3. 規程の取り込みが終わったことを確かめる
-4. 手元か Runtime で話しかける
-5. 溜まったトレースを採点する
-6. 片付ける
+2. Knowledge Base と Runtime をデプロイし、規程を取り込む（`scripts/deploy.sh`。AgentCore CLI でもデプロイできる）
+3. 手元か Runtime で話しかける
+4. 溜まったトレースを採点する
+5. 片付ける
 
 ## 作られるもの
 
@@ -56,8 +55,9 @@ CDK のスタック `AgentCore-agentopssample-default` に、次のものが入�
 | IAM ロール | 自動で付く名前 | KB が埋め込みモデル・インデックス・規程のバケットを使うためのロール |
 | Knowledge Base | `AgentCore-agentopssample-default-policies` | 埋め込みは Titan Text Embeddings V2 |
 | データソース | `policies` | 規程のバケットの `policies/` を固定長（300 トークン、重なり 20%）で取り込む |
-| 取り込みの開始（AwsCustomResource） | - | デプロイのたびに StartIngestionJob を呼ぶ。規程の中身が変わったときだけ、もう一度取り込む |
 | AgentCore Runtime | `agentopssample_SupportAgent` | エージェント本体。環境変数 `KNOWLEDGE_BASE_ID` と、その KB への `bedrock:Retrieve` を渡している |
+
+規程の取り込み（StartIngestionJob）はスタックに入れず、デプロイのあとに `scripts/ingest_policies.py` でかけます。デプロイの途中で取り込みの完了を待つには、自前の Lambda が要るためです（「[規程を取り込む](#規程を取り込む)」）。
 
 AgentCore CLI の `agentcore.json` にも `knowledgeBases` がありますが、0.22.0 が作る KB は `MANAGED` 型で、ベクトルストアを選べません。S3 Vectors を使うため、KB は CDK に自分で書いています（`agentcore/cdk/lib/policy-knowledge-base.ts`）。
 
@@ -145,8 +145,12 @@ echo "[{\"name\":\"default\",\"account\":\"$ACCOUNT\",\"region\":\"us-east-1\"}]
 
 cdkd synth                                   # 手元で合成するだけ。AWS には何も作らない
 cdkd diff AgentCore-agentopssample-default   # 作られるものを確かめる
-cdkd deploy AgentCore-agentopssample-default
+
+cd ../..
+scripts/deploy.sh   # ビルド → cdkd deploy → 規程の取り込み（終わるまで待つ）
 ```
+
+`scripts/deploy.sh` は、`npm run build`、`cdkd deploy AgentCore-agentopssample-default`、`scripts/ingest_policies.py` を続けて実行します。引数を付けると `cdkd deploy` に渡します。
 
 合成のときに、`uv` が Runtime の依存を Linux 向けに入れて zip を作ります（約 55MB）。最後に Outputs として、KB の ID（`PolicyKnowledgeBaseId`）などが表示されます。あとから見るときは `cdkd state show AgentCore-agentopssample-default` を使います。
 
@@ -158,26 +162,25 @@ cdkd での扱いは次のとおりです（0.290.49 のソースとドキュメ
 | `AWS::S3Vectors::VectorBucket` | cdkd の専用の処理。名前が必須なので、CDK で名前を付けている |
 | `AWS::S3Vectors::Index`、`AWS::Bedrock::KnowledgeBase`、`AWS::Bedrock::DataSource` | Cloud Control API 経由 |
 | `AWS::IAM::*`、`AWS::S3::*`、`AWS::Lambda::*`、`AWS::Logs::LogGroup` | cdkd の専用の処理 |
-| `Custom::CDKBucketDeployment`、`Custom::S3AutoDeleteObjects`、`Custom::AWS` | cdkd がカスタムリソースの Lambda を呼び、応答を待つ |
+| `Custom::CDKBucketDeployment`、`Custom::S3AutoDeleteObjects` | cdkd がカスタムリソースの Lambda を呼び、応答を待つ |
 
-Runtime を Cloud Control API 経由で作れないときは、`cdkd deploy` に `--prefer-sdk-route AWS::BedrockAgentCore::Runtime:Tags` を付けると cdkd の専用の処理で作れます（そのかわり Runtime にタグが付きません）。
+Runtime を Cloud Control API 経由で作れないときは、`scripts/deploy.sh --prefer-sdk-route AWS::BedrockAgentCore::Runtime:Tags` のように `cdkd deploy` へオプションを渡すと cdkd の専用の処理で作れます（そのかわり Runtime にタグが付きません）。
 
-### 取り込みが終わったか確かめる
+### 規程を取り込む
 
-取り込みはデプロイの最後に始まり、デプロイは取り込みの完了を待ちません。状況は次のように確かめます。
+`scripts/deploy.sh` は、デプロイのあとに `scripts/ingest_policies.py` で規程を取り込みます。取り込みだけをやり直すときは、リポジトリ直下で次を実行します。
 
 ```bash
-KB_ID=$(aws bedrock-agent list-knowledge-bases \
-  --query "knowledgeBaseSummaries[?name=='AgentCore-agentopssample-default-policies'].knowledgeBaseId" --output text)
-DS_ID=$(aws bedrock-agent list-data-sources --knowledge-base-id "$KB_ID" \
-  --query "dataSourceSummaries[0].dataSourceId" --output text)
-aws bedrock-agent list-ingestion-jobs --knowledge-base-id "$KB_ID" --data-source-id "$DS_ID" \
-  --sort-by attribute=STARTED_AT,order=DESCENDING \
-  --query "ingestionJobSummaries[0].[status,statistics.numberOfNewDocumentsIndexed,statistics.numberOfDocumentsFailed]" \
-  --output text
+uv run python scripts/ingest_policies.py
 ```
 
-`COMPLETE 25 0` と出れば終わっています（2回目以降の取り込みでは、変わった文書の数だけが数えられます）。取り込みをやり直したいときは `aws bedrock-agent start-ingestion-job --knowledge-base-id "$KB_ID" --data-source-id "$DS_ID"` を実行します。
+スクリプトは KB とデータソースを名前で探し、次の順に進めます。
+
+- 同じデータソースで取り込みが走っていれば、終わるまで待つ。走っている最中に始めると `StartIngestionJob` が `ConflictException` になるため
+- 取り込みを始め、終わるまで待つ（15分まで）
+- 取り込みが失敗したときや、失敗した文書があるときは、理由を出して終了コード 1 で終わる
+
+初回は `取り込みが終わりました: COMPLETE（読んだ文書 25、新規 25、更新 0、削除 0、失敗 0）` のように出ます。取り込みは毎回かけますが、変わっていない文書は Bedrock が飛ばすので、2回目以降は変わった文書だけが数えられ、早く終わります。
 
 ### 呼び出す
 
@@ -234,9 +237,10 @@ aws sts get-caller-identity
 agentcore validate          # 設定ファイルを検証する
 agentcore deploy --diff     # 作られるものを確かめる
 agentcore deploy -y
+uv run python scripts/ingest_policies.py   # 規程を取り込む（終わるまで待つ）
 ```
 
-初回の deploy で、`agentcore/aws-targets.json` に自分のアカウントとリージョンが書き込まれます。CDK の bootstrap が済んでいないリージョンでは、`-y` を付けると bootstrap（CDKToolkit スタックと、アセット用の S3 バケットなど）も自動で行われます。取り込みの確かめ方は cdkd のときと同じです。
+初回の deploy で、`agentcore/aws-targets.json` に自分のアカウントとリージョンが書き込まれます。CDK の bootstrap が済んでいないリージョンでは、`-y` を付けると bootstrap（CDKToolkit スタックと、アセット用の S3 バケットなど）も自動で行われます。規程の取り込みは cdkd のときと同じく、デプロイのあとに `scripts/ingest_policies.py` でかけます。
 
 ```bash
 agentcore status
@@ -295,7 +299,7 @@ uv run python evals/run.py
 ## テスト
 
 ```bash
-uv run pytest                     # 道具の単体テスト（Retrieve は botocore の Stubber で差し替える）
+uv run pytest                     # 道具と取り込みスクリプトの単体テスト（AWS の応答は botocore の Stubber で差し替える）
 (cd agentcore/cdk && npx jest)    # CDK のテスト
 ```
 
@@ -358,7 +362,9 @@ docs/corpus-design.md             規程の設計、罠の一覧、改定の演�
 evals/rules.py                    コードで測れるもの
 evals/jev_judge.py                Jev に採点させる
 evals/run.py                      トレースを取る → 採点する → スコアを書き戻す
-tests/                            道具の単体テスト
+tests/                            道具と取り込みスクリプトの単体テスト
+scripts/deploy.sh                 cdkd でデプロイし、続けて規程を取り込む
+scripts/ingest_policies.py        規程を KB に取り込み、終わるまで待つ
 agentcore/agentcore.json          AgentCore CLI の設定
 agentcore/cdk/lib/cdk-stack.ts    CDK のスタック（CLI が生成したものに、KB と権限を足した）
 agentcore/cdk/lib/policy-knowledge-base.ts  規程の KB 一式
