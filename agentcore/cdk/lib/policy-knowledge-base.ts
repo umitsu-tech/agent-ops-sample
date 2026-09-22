@@ -1,13 +1,9 @@
-import { createHash } from 'crypto';
-import * as fs from 'fs';
-import * as path from 'path';
 import { RemovalPolicy, Stack } from 'aws-cdk-lib';
 import * as bedrock from 'aws-cdk-lib/aws-bedrock';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment';
 import * as s3vectors from 'aws-cdk-lib/aws-s3vectors';
-import * as cr from 'aws-cdk-lib/custom-resources';
 import { Construct } from 'constructs';
 
 /**
@@ -36,7 +32,9 @@ export interface PolicyKnowledgeBaseProps {
  * - 規程を置く S3 バケットと、data/policies のアップロード
  * - ベクトルの置き場（S3 Vectors のベクトルバケットとインデックス）
  * - KB のサービスロール、KB、データソース
- * - デプロイのたびに取り込み（StartIngestionJob）を始めるカスタムリソース
+ *
+ * 取り込み（StartIngestionJob）はスタックに入れず、デプロイのあとに scripts/ingest_policies.py でかける。
+ * デプロイの途中で取り込みの完了を待つには自前の Lambda が要るため、スクリプトにしている。
  *
  * AgentCore CLI の agentcore.json にも knowledgeBases はあるが、0.22.0 が作る KB は MANAGED 型で、
  * ベクトルストアを選べない。S3 Vectors を使うため、ここでは L1 で組み立てる。
@@ -66,7 +64,7 @@ export class PolicyKnowledgeBase extends Construct {
     });
 
     // data/policies をバケットの policies/ にそのまま置く。消したファイルはバケットからも消す（prune）
-    const deployment = new s3deploy.BucketDeployment(this, 'DeployDocs', {
+    new s3deploy.BucketDeployment(this, 'DeployDocs', {
       sources: [s3deploy.Source.asset(props.sourceDir)],
       destinationBucket: this.docsBucket,
       destinationKeyPrefix: DOCS_PREFIX,
@@ -174,46 +172,5 @@ export class PolicyKnowledgeBase extends Construct {
     this.knowledgeBaseId = knowledgeBase.attrKnowledgeBaseId;
     this.knowledgeBaseArn = knowledgeBase.attrKnowledgeBaseArn;
     this.dataSourceId = dataSource.attrDataSourceId;
-
-    // アップロードが終わったあとに取り込みを始める。規程の中身が変わったら description が変わり、
-    // カスタムリソースが更新されて、もう一度取り込みが走る。取り込み自体は非同期で、デプロイは完了を待たない
-    const startIngestion: cr.AwsSdkCall = {
-      service: '@aws-sdk/client-bedrock-agent',
-      action: 'StartIngestionJob',
-      parameters: {
-        knowledgeBaseId: this.knowledgeBaseId,
-        dataSourceId: this.dataSourceId,
-        description: `data/policies ${hashDirectory(props.sourceDir).slice(0, 16)}`,
-      },
-      physicalResourceId: cr.PhysicalResourceId.fromResponse('ingestionJob.ingestionJobId'),
-      outputPaths: ['ingestionJob.ingestionJobId'],
-    };
-    const ingestion = new cr.AwsCustomResource(this, 'StartIngestion', {
-      onCreate: startIngestion,
-      onUpdate: startIngestion,
-      policy: cr.AwsCustomResourcePolicy.fromStatements([
-        new iam.PolicyStatement({
-          actions: ['bedrock:StartIngestionJob'],
-          resources: [this.knowledgeBaseArn],
-        }),
-      ]),
-      installLatestAwsSdk: false,
-    });
-    ingestion.node.addDependency(deployment);
-    ingestion.node.addDependency(dataSource);
   }
-}
-
-/**
- * フォルダの中身からハッシュを作る。ファイルの名前と中身が変わったときだけ値が変わる。
- */
-function hashDirectory(dir: string): string {
-  const hash = createHash('sha256');
-  for (const name of fs.readdirSync(dir).sort()) {
-    const file = path.join(dir, name);
-    if (!fs.statSync(file).isFile()) continue;
-    hash.update(name);
-    hash.update(fs.readFileSync(file));
-  }
-  return hash.digest('hex');
 }

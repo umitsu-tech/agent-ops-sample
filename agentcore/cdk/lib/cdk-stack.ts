@@ -202,7 +202,7 @@ export class AgentCoreStack extends Stack {
         })
       );
     }
-    // アップロードと取り込み開始の Lambda が使うロググループは、CDK の既定では保持期間 731 日で
+    // アップロードの Lambda が使うロググループは、CDK の既定では保持期間 731 日で
     // スタックを消しても残る（Retain）。サンプルなので、スタックと一緒に消えるようにしておく
     Aspects.of(this).add({
       visit(node) {

@@ -55,7 +55,7 @@ const EMPTY_SPEC = {
   knowledgeBases: [],
 };
 
-test('社内規程の Knowledge Base を S3 Vectors で作り、取り込みを始める', () => {
+test('社内規程の Knowledge Base を S3 Vectors で作る', () => {
   const app = new cdk.App();
   const stack = new AgentCoreStack(app, 'TestStack', { spec: EMPTY_SPEC });
   const template = Template.fromStack(stack);
@@ -78,7 +78,8 @@ test('社内規程の Knowledge Base を S3 Vectors で作り、取り込みを�
     DataSourceConfiguration: { S3Configuration: { InclusionPrefixes: ['policies/'] } },
   });
   template.resourceCountIs('Custom::CDKBucketDeployment', 1);
-  template.resourceCountIs('Custom::AWS', 1);
+  // 取り込みはデプロイのあとに scripts/ingest_policies.py でかける。スタックでも始めると、スクリプトの取り込みとぶつかる
+  template.resourceCountIs('Custom::AWS', 0);
   template.hasOutput('PolicyKnowledgeBaseId', {});
 });
 
