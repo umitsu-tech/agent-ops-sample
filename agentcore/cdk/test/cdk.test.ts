@@ -1,5 +1,5 @@
 import * as cdk from 'aws-cdk-lib';
-import { Template } from 'aws-cdk-lib/assertions';
+import { Match, Template } from 'aws-cdk-lib/assertions';
 import { AgentCoreStack } from '../lib/cdk-stack';
 import { stageRuntimeCode } from '../lib/runtime-code';
 import * as fs from 'fs';
@@ -78,6 +78,10 @@ test('社内規程の Knowledge Base を S3 Vectors で作る', () => {
     DataSourceConfiguration: { S3Configuration: { InclusionPrefixes: ['policies/'] } },
   });
   template.resourceCountIs('Custom::CDKBucketDeployment', 1);
+  // KB はロールの反映を待つため、規程のアップロードのあとに作る
+  template.hasResource('AWS::Bedrock::KnowledgeBase', {
+    DependsOn: Match.arrayWith([Match.stringLikeRegexp('DeployDocsCustomResource')]),
+  });
   // 取り込みはデプロイのあとに scripts/ingest_policies.py でかける。スタックでも始めると、スクリプトの取り込みとぶつかる
   template.resourceCountIs('Custom::AWS', 0);
   template.hasOutput('PolicyKnowledgeBaseId', {});
