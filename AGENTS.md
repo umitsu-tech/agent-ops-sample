@@ -23,6 +23,7 @@
 - Runtime の zip には `pyproject.toml`、`src/`、`data/applications.json` だけを入れる（`agentcore/cdk/lib/runtime-code.ts`）
 - システムプロンプトに今日の日付（JST）を入れる。規程に施行日があるため
 - 評価は Jev を主役にする。LLM-as-a-judge は他書でも扱われているため、そこでの困りごとを示す前振りとして短く扱う
+- 正解つきの質問集（`evals/dataset.jsonl`）は罠の表と1対1にする。正しさは Jev、道具・引き継ぎ・出典はコードで測る。質問した日は 2026-09-24 に固定する（施行日で答えが変わる質問があるため）
 - 採点結果は `results/` に残す。Langfuse の無料枠は保持30日で、原稿を書いている間に元データが消えるため
 - `results/` はリポジトリに含めない
 
@@ -54,7 +55,8 @@
   - まだ: AWS へのデプロイ（`cdkd bootstrap` / `scripts/deploy.sh`）、本物の KB での検索と取り込み、Runtime の呼び出し、新しいトレースでの採点
 - 対応済み: 2026-09-23 に `agentcore deploy` した Runtime の zip に `.env` が入っていた。CDK のアセット用バケット（`cdk-hnb659fds-assets-<アカウントID>-us-east-1`）の zip（1バージョンのみ）、手元の一時 zip、`agentcore/cdk/cdk.out` の写しは削除した。鍵は入れ替えない（個人アカウントの非公開バケットに約40分置かれていただけのため）
 - デプロイ済み（2026-09-23、cdkd、us-east-1）: `cdkd bootstrap` のあと `scripts/deploy.sh` で20リソースを作り、規程25本の取り込みが COMPLETE。Runtime に1問投げて答えが返り、Langfuse にトレース（6件）が届いた。SSM パラメータ `/agent-ops-sample/langfuse` も置き直した。片付けは README の「片付ける」
-- 次の一歩: 正解つきの質問集での採点（Issue #5）と、本番のトレースに掛ける観点の見直し（Issue #6）
+- 進行中（Issue #5、ブランチ `feature/5-dataset-evals`）: 罠の表を規程と突き合わせて7件直し（規程4本、質問と答え3件）、正解つきの質問集と採点（`evals/run_dataset.py`）を作った。デプロイした KB で26問を流し、正しさ 22/26、道具 25/26、引き継ぎ 18/25、出典 3/25、根拠の平均 0.79（`docs/corpus-design.md` の「質問集での採点」）。PR #8（Issue #7）の直しを取り込んでいる
+- 次の一歩: 本番のトレースに掛ける観点の見直し（Issue #6）。引き継ぎと出典が守られていないので、システムプロンプトを直す前後を質問集で比べる（4.2 の題材）
 - その次: 罠の表を正解つきの質問集にして、正しさ・引き継ぎ・出典の採点を足す。評価の観点（道具の選択と引数を分ける、セッション単位の用件達成、回答の関連性）も見直す。改定の演習（`docs/corpus-design.md`）を行う
 - 未着手: 本文の執筆
 
