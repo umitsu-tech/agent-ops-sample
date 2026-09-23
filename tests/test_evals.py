@@ -173,3 +173,38 @@ def test_collect_turns_keeps_tool_arguments():
         {"name": "escalate", "input": {"department": "人事", "reason": "個別の判断"}, "output": '{"escalated_to": "人事部"}'}
     ]
     assert turn["answer"] == "人事部に引き継ぎました。"
+
+
+@pytest.mark.parametrize(
+    ("calls", "verdict", "expected"),
+    [
+        (MESSAGES, "correct", True),
+        # 呼んでいるのに Jev が no_tool と答えた。合格にも測定対象外にもしない
+        (MESSAGES, "no_tool", False),
+        # 呼んでいないのに Jev が correct と答えた。引数は無いので測らない
+        ([], "correct", None),
+    ],
+)
+def test_tool_args_ok_uses_actual_calls(calls, verdict, expected):
+    tool_calls = dataset.extract_tool_calls(calls) if calls else []
+
+    assert dataset.tool_args_ok(tool_calls, verdict) is expected
+
+
+def test_missing_scores_lists_only_scores_not_yet_written():
+    """前の版で根拠と道具の選択だけを付けたトレースには、足した2つの観点だけを付ける。"""
+    import run
+
+    class _Score:
+        def __init__(self, name):
+            self.name = name
+
+    class _Client:
+        class api:
+            class scores_v3:
+                @staticmethod
+                def get_many_v3(**_):
+                    data = [_Score(run.SCORE_GROUNDED), _Score(run.SCORE_TOOL_CHOICE)]
+                    return type("Response", (), {"data": data})()
+
+    assert run.missing_scores(_Client(), "trace-1") == [run.SCORE_TOOL_ARGS, run.SCORE_GOAL]

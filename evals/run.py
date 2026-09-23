@@ -26,6 +26,7 @@ SCORE_GROUNDED = "根拠"
 SCORE_TOOL_CHOICE = "道具の選択"
 SCORE_TOOL_ARGS = "道具の引数"
 SCORE_GOAL = "用件の達成"
+SCORE_NAMES = [SCORE_GROUNDED, SCORE_TOOL_CHOICE, SCORE_TOOL_ARGS, SCORE_GOAL]
 LOOKBACK_HOURS = 2
 TOOL_OUTPUT_LIMIT = 6000
 
@@ -138,13 +139,44 @@ def save_results(rows: list[dict]) -> None:
     print(f"\n結果を残しました: results/{stamp}.md")
 
 
-def already_scored(client, trace_id: str) -> bool:
-    """このトレースをもう採点したか。
+def missing_scores(client, trace_id: str) -> list[str]:
+    """このトレースにまだ付いていないスコアの名前を返す。
 
     採点するたびにスコアが積み上がると、画面で同じ行が何度も並んで読めなくなる。
+    観点を足したあとも、前に採点したトレースに足りない観点だけを付けられるよう、名前ごとに確かめる。
     """
-    scored = client.api.scores_v3.get_many_v3(trace_id=trace_id, name=SCORE_GROUNDED, limit=1)
-    return len(scored.data) > 0
+    scored = client.api.scores_v3.get_many_v3(trace_id=trace_id, limit=100)
+    names = {score.name for score in scored.data}
+    return [name for name in SCORE_NAMES if name not in names]
+
+
+def scores_from_verdict(verdict: dict) -> dict[str, dict]:
+    """Jev の結果を、Langfuse に書き戻すスコアの形にする。
+
+    数値と判定の両方を残す。あとから閾値を変えて絞り込めるようにするため。
+    """
+    return {
+        SCORE_GROUNDED: {
+            "value": verdict["grounded"],
+            "data_type": "NUMERIC",
+            "comment": f"{verdict['grounded_verdict']} / 確信度 {verdict['grounded_confidence']}",
+        },
+        SCORE_TOOL_CHOICE: {
+            "value": verdict["tool_choice"] or "unknown",
+            "data_type": "CATEGORICAL",
+            "comment": f"確信度 {verdict['tool_choice_confidence']}",
+        },
+        SCORE_TOOL_ARGS: {
+            "value": verdict["tool_args"] or "unknown",
+            "data_type": "CATEGORICAL",
+            "comment": f"確信度 {verdict['tool_args_confidence']}",
+        },
+        SCORE_GOAL: {
+            "value": verdict["goal"],
+            "data_type": "NUMERIC",
+            "comment": f"{verdict['goal_verdict']} / 確信度 {verdict['goal_confidence']}",
+        },
+    }
 
 
 def main() -> None:
@@ -163,7 +195,8 @@ def main() -> None:
     for trace_id, turn in turns.items():
         if not turn["question"]:
             continue
-        if already_scored(client, trace_id):
+        missing = missing_scores(client, trace_id)
+        if not missing:
             skipped += 1
             continue
 
@@ -171,35 +204,10 @@ def main() -> None:
         tool_calls = json.dumps(turn["tools"], ensure_ascii=False)
         verdict = judge(conversation, tool_calls)
 
-        # 数値と判定の両方を残す。あとから閾値を変えて絞り込めるようにするため。
-        client.create_score(
-            name=SCORE_GROUNDED,
-            value=verdict["grounded"],
-            trace_id=trace_id,
-            data_type="NUMERIC",
-            comment=f"{verdict['grounded_verdict']} / 確信度 {verdict['grounded_confidence']}",
-        )
-        client.create_score(
-            name=SCORE_TOOL_CHOICE,
-            value=verdict["tool_choice"] or "unknown",
-            trace_id=trace_id,
-            data_type="CATEGORICAL",
-            comment=f"確信度 {verdict['tool_choice_confidence']}",
-        )
-        client.create_score(
-            name=SCORE_TOOL_ARGS,
-            value=verdict["tool_args"] or "unknown",
-            trace_id=trace_id,
-            data_type="CATEGORICAL",
-            comment=f"確信度 {verdict['tool_args_confidence']}",
-        )
-        client.create_score(
-            name=SCORE_GOAL,
-            value=verdict["goal"],
-            trace_id=trace_id,
-            data_type="NUMERIC",
-            comment=f"{verdict['goal_verdict']} / 確信度 {verdict['goal_confidence']}",
-        )
+        # 付いていないスコアだけを書き戻す。前に採点したスコアは上書きも重複もさせない
+        scores = scores_from_verdict(verdict)
+        for name in missing:
+            client.create_score(name=name, trace_id=trace_id, **scores[name])
 
         rows.append(
             {

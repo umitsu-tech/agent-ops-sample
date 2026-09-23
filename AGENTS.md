@@ -32,7 +32,7 @@
 - `aws login` で認証している場合、boto3 から使うのに `botocore[crt]` が要る
 - Langfuse は 2026-09-16 以降に作られた組織だと旧 API が 410 になる。observations API v2 を使う
 - observations API は `fields="core,basic,io"` を指定しないと、道具の名前か入出力のどちらかが欠ける
-- 同じトレースを何度採点してもスコアが積み上がるので、採点済みは飛ばす
+- 同じトレースを何度採点してもスコアが積み上がるので、付いているスコアは飛ばし、付いていない観点だけを書き戻す（観点を足したときに、前に採点したトレースへ足りない分だけ付けるため）
 - AgentCore Runtime は既定で ADOT を仕込むので、そのままだとトレースが Langfuse に届かない。`agentcore.json` の `instrumentation.enableOtel: false` と `DISABLE_ADOT_OBSERVABILITY=true` の両方で切る
 - `agentcore.json` の `envVars` は平文でコミットされ、テンプレートにも残る。Langfuse の鍵は SSM Parameter Store の SecureString（`/agent-ops-sample/langfuse`、JSON 1つ）に置き、`runtime.py` が起動時に読む。ロールに足すのはそのパラメータの `ssm:GetParameter` だけ（`aws/ssm` キーなので `kms:Decrypt` は不要）
 - AWS CLI の `file://` はパイプや標準入力を読めない（2.35.14 で確認）。鍵を `put-parameter` に渡すときは、0600 の一時ファイルを経由する

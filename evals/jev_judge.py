@@ -39,7 +39,9 @@ TOOL_ARGS = (
     "For escalate, the department should match the matter: 人事 for leave, remote work, side jobs, "
     "leave of absence, condolence payments, harassment and wages; 総務 for travel, equipment, offices, "
     "information security, PCs and accounts; 経理 for expenses, entertainment, commuting allowance, "
-    "corporate cards and advance payments."
+    "corporate cards and advance payments. "
+    "Rules kept outside these policies go to 人事, including the rules for executives (such as executive travel), "
+    "wages and part-time workers."
 )
 
 GOAL = (

@@ -76,6 +76,16 @@ def score_by_code(item: dict, answer: str, tool_calls: list[dict]) -> dict:
     }
 
 
+def tool_args_ok(tool_calls: list[dict], verdict: str | None) -> bool | None:
+    """道具の引数が合っていたか。道具を呼んだかどうかは、Jev ではなく実際の呼び出しで決める。
+
+    道具を呼んでいなければ測らない（None）。呼んでいるのに Jev が no_tool と答えたときは、合格にしない。
+    """
+    if not tool_calls:
+        return None
+    return verdict == "correct"
+
+
 def conversation_for_judge(question: str, answer: str) -> str:
     """Jev に渡すやりとりの形にする（evals/run.py と同じ形）。"""
     return f"社員: {question}\n担当者: {answer}"

@@ -32,6 +32,7 @@ from dataset import (  # noqa: E402
     load_dataset,
     score_by_code,
     summarize,
+    tool_args_ok,
     tool_calls_for_judge,
 )
 from jev_judge import judge, judge_correctness  # noqa: E402
@@ -64,8 +65,7 @@ def evaluate(item: dict) -> dict:
         # 判定（agrees / disagrees）をそのまま合否にする。数値は閾値を変えて見直すために残す
         "correct_ok": correctness["correct_verdict"] == "agrees",
         **grounding,
-        # 道具を呼んでいなければ、引数は測らない
-        "tool_args_ok": None if grounding["tool_args"] == "no_tool" else grounding["tool_args"] == "correct",
+        "tool_args_ok": tool_args_ok(tool_calls, grounding["tool_args"]),
         "goal_ok": grounding["goal_verdict"] == "achieved",
     }
 
