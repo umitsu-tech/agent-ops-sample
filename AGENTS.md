@@ -56,7 +56,8 @@
 - 対応済み: 2026-09-23 に `agentcore deploy` した Runtime の zip に `.env` が入っていた。CDK のアセット用バケット（`cdk-hnb659fds-assets-<アカウントID>-us-east-1`）の zip（1バージョンのみ）、手元の一時 zip、`agentcore/cdk/cdk.out` の写しは削除した。鍵は入れ替えない（個人アカウントの非公開バケットに約40分置かれていただけのため）
 - デプロイ済み（2026-09-23、cdkd、us-east-1）: `cdkd bootstrap` のあと `scripts/deploy.sh` で20リソースを作り、規程25本の取り込みが COMPLETE。Runtime に1問投げて答えが返り、Langfuse にトレース（6件）が届いた。SSM パラメータ `/agent-ops-sample/langfuse` も置き直した。片付けは README の「片付ける」
 - 進行中（Issue #5、ブランチ `feature/5-dataset-evals`）: 罠の表を規程と突き合わせて7件直し（規程4本、質問と答え3件）、正解つきの質問集と採点（`evals/run_dataset.py`）を作った。デプロイした KB で26問を流し、正しさ 22/26、道具 25/26、引き継ぎ 18/25、出典 3/25、根拠の平均 0.79（`docs/corpus-design.md` の「質問集での採点」）。PR #8（Issue #7）の直しを取り込んでいる
-- 次の一歩: 本番のトレースに掛ける観点の見直し（Issue #6）。引き継ぎと出典が守られていないので、システムプロンプトを直す前後を質問集で比べる（4.2 の題材）
+- 進行中（Issue #6、ブランチ `feature/6-online-eval-aspects`、`feature/5-dataset-evals` の上に積んでいる）: `evals/run.py` の観点に、道具の引数（correct / wrong / no_tool）と用件の達成（noul と choice）を足し、道具の選択と分けた。トレースから道具の引数も取るようにした
+- 次の一歩: 引き継ぎと出典が守られていないので、システムプロンプトを直す前後を質問集で比べる（4.2 の題材）
 - その次: 罠の表を正解つきの質問集にして、正しさ・引き継ぎ・出典の採点を足す。評価の観点（道具の選択と引数を分ける、セッション単位の用件達成、回答の関連性）も見直す。改定の演習（`docs/corpus-design.md`）を行う
 - 未着手: 本文の執筆
 
