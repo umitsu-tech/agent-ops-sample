@@ -112,3 +112,42 @@ def test_summarize_skips_unmeasured_and_failed_rows():
     assert summary["出典"] == (1, 1)
     assert summary["根拠の平均"] == pytest.approx(0.7)
     assert summary["失敗"] == 1
+
+
+class _Observation:
+    def __init__(self, type_, name, input_=None, output=None, second=0):
+        from datetime import datetime, timezone
+
+        self.trace_id = "trace-1"
+        self.type = type_
+        self.name = name
+        self.input = input_
+        self.output = output
+        self.start_time = datetime(2026, 9, 23, 0, 0, second, tzinfo=timezone.utc)
+
+
+def test_collect_turns_keeps_tool_arguments():
+    """Langfuse の道具の観測データから、引数を辞書に戻して残す（道具の引数の採点に使う）。"""
+    import run
+
+    tool_input = '[{"role":"tool","content":"{\\"department\\": \\"人事\\", \\"reason\\": \\"個別の判断\\"}","id":"t1"}]'
+    observations = [
+        _Observation("GENERATION", "chat", input_=[{"role": "user", "content": "副業になりますか"}], second=0),
+        _Observation("TOOL", "escalate", input_=tool_input, output='{"escalated_to": "人事部"}', second=1),
+        _Observation("GENERATION", "chat", output="人事部に引き継ぎました。", second=2),
+    ]
+
+    class _Client:
+        class api:
+            class observations:
+                @staticmethod
+                def get_many(**_):
+                    return type("Response", (), {"data": observations})()
+
+    turn = run.collect_turns(_Client())["trace-1"]
+
+    assert turn["question"] == "副業になりますか"
+    assert turn["tools"] == [
+        {"name": "escalate", "input": {"department": "人事", "reason": "個別の判断"}, "output": '{"escalated_to": "人事部"}'}
+    ]
+    assert turn["answer"] == "人事部に引き継ぎました。"

@@ -75,9 +75,12 @@ def conversation_for_judge(question: str, answer: str) -> str:
 
 
 def tool_calls_for_judge(tool_calls: list[dict]) -> str:
-    """Jev に渡す道具の呼び出しの形にする。検索の抜粋は長いので切る（evals/run.py と同じ長さ）。"""
+    """Jev に渡す道具の呼び出しの形にする（evals/run.py と同じ形）。検索の抜粋は長いので切る。"""
     return json.dumps(
-        [{"name": call["name"], "output": call["output"][:TOOL_OUTPUT_LIMIT]} for call in tool_calls],
+        [
+            {"name": call["name"], "input": call["input"], "output": call["output"][:TOOL_OUTPUT_LIMIT]}
+            for call in tool_calls
+        ],
         ensure_ascii=False,
     )
 
@@ -94,8 +97,10 @@ def summarize(rows: list[dict]) -> dict:
     return {
         "正しさ": count("correct_ok"),
         "道具": count("tools_ok"),
+        "道具の引数": count("tool_args_ok"),
         "引き継ぎ": count("escalation_ok"),
         "出典": count("citation_ok"),
+        "用件の達成": count("goal_ok"),
         "根拠の平均": sum(grounded) / len(grounded) if grounded else None,
         "失敗": len(rows) - len(scored),
     }

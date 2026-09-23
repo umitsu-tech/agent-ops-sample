@@ -64,6 +64,9 @@ def evaluate(item: dict) -> dict:
         # 判定（agrees / disagrees）をそのまま合否にする。数値は閾値を変えて見直すために残す
         "correct_ok": correctness["correct_verdict"] == "agrees",
         **grounding,
+        # 道具を呼んでいなければ、引数は測らない
+        "tool_args_ok": None if grounding["tool_args"] == "no_tool" else grounding["tool_args"] == "correct",
+        "goal_ok": grounding["goal_verdict"] == "achieved",
     }
 
 
@@ -86,17 +89,23 @@ def save_results(rows: list[dict], summary: dict) -> None:
             lines.append(f"- {name}: {value[0]} / {value[1]}")
         elif value is not None:
             lines.append(f"- {name}: {value:.2f}" if isinstance(value, float) else f"- {name}: {value}")
-    lines += ["", "| # | 種類 | 質問 | 正しさ | 根拠 | 道具 | 引き継ぎ | 出典 |", "|---|---|---|---|---|---|---|---|"]
+    lines += [
+        "",
+        "| # | 種類 | 質問 | 正しさ | 根拠 | 道具 | 道具の引数 | 引き継ぎ | 出典 | 用件の達成 |",
+        "|---|---|---|---|---|---|---|---|---|---|",
+    ]
     for row in rows:
         if "error" in row:
-            lines.append(f"| {row['id']} | {row['kind']} | {row['question']} | 失敗: {row['error']} | | | | |")
+            lines.append(f"| {row['id']} | {row['kind']} | {row['question']} | 失敗: {row['error']} | | | | | | |")
             continue
         lines.append(
             f"| {row['id']} | {row['kind']} | {row['question']} | "
             f"{_mark(row['correct_ok'])} {row['correct']:.2f}（確信度 {row['correct_confidence']}） | "
             f"{row['grounded']:.2f} {row['grounded_verdict']} | "
             f"{_mark(row['tools_ok'])} {'、'.join(row['tools']) or 'なし'} | "
-            f"{_mark(row['escalation_ok'])} {'、'.join(row['escalated_to'])} | {_mark(row['citation_ok'])} |"
+            f"{_mark(row['tool_args_ok'])} {row['tool_args']} | "
+            f"{_mark(row['escalation_ok'])} {'、'.join(row['escalated_to'])} | {_mark(row['citation_ok'])} | "
+            f"{_mark(row['goal_ok'])} {row['goal']:.2f} |"
         )
     lines += ["", "## 答え", ""]
     for row in rows:
