@@ -37,15 +37,18 @@ def build_system_prompt(today: str | None = None) -> str:
     return SYSTEM_PROMPT.format(today=today)
 
 
-def build_agent(model_id: str | None = None) -> Agent:
-    """社内規程の Q&A エージェントを組み立てる。"""
+def build_agent(model_id: str | None = None, today: str | None = None) -> Agent:
+    """社内規程の Q&A エージェントを組み立てる。
+
+    today を渡すと、その日に質問されたものとして答える（評価で日付を固定するため）。
+    """
     model = BedrockModel(
         region_name=os.environ.get("AWS_REGION", "us-east-1"),
         model_id=model_id or os.environ.get("BEDROCK_MODEL_ID", DEFAULT_MODEL_ID),
     )
     return Agent(
         model=model,
-        system_prompt=build_system_prompt(),
+        system_prompt=build_system_prompt(today),
         tools=[search_policies, get_application_status, escalate],
         # 既定では途中経過が標準出力に流れる。ここでは最後の答えだけを扱いたいので止める
         callback_handler=None,

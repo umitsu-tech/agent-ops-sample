@@ -39,7 +39,7 @@ uv sync
 1. Langfuse の鍵を SSM Parameter Store に置く（Runtime で動かすときだけ）
 2. Knowledge Base と Runtime をデプロイし、規程を取り込む（`scripts/deploy.sh`。AgentCore CLI でもデプロイできる）
 3. 手元か Runtime で話しかける
-4. 溜まったトレースを採点する
+4. 溜まったトレースを採点する。正解つきの質問集を流して採点することもできる
 5. 片付ける
 
 ## 作られるもの
@@ -294,12 +294,33 @@ curl -s -X POST http://127.0.0.1:8080/invocations \
 uv run python evals/run.py
 ```
 
-採点結果は Langfuse のスコアとして書き戻されるので、画面から絞り込めます。`evals/` は新しい道具で動くところまで直しただけで、この題材に合わせた手直しが残っています（[docs/corpus-design.md](docs/corpus-design.md) の最後）。
+採点結果は Langfuse のスコアとして書き戻されるので、画面から絞り込めます。
+
+### 正解つきの質問集で採点する
+
+プロンプトやモデル、道具の説明を変えたときは、同じ質問で前後を比べます。`evals/dataset.jsonl` に、罠の表（[docs/corpus-design.md](docs/corpus-design.md)）を元にした26問と、それぞれの正解・根拠の文書・引き継ぎ先を置いています。
+
+```bash
+uv run python evals/run_dataset.py           # 全問
+uv run python evals/run_dataset.py 01 05     # 番号を指定
+```
+
+手元のエージェントに1問ずつ新しい会話で投げ、次の5つを測って `results/dataset-<日時>.md` に残します。デプロイした KB を検索するので、先に `.env` の `KNOWLEDGE_BASE_ID` を書いておきます。質問した日は 2026-09-24 に固定しています（規程の施行日で答えが変わる質問があるため）。
+
+| 観点 | 測り方 |
+|---|---|
+| 正しさ | Jev。質問・正解・答えを渡し、正解と合っているかを聞く |
+| 根拠 | Jev。`evals/run.py` と同じ |
+| 道具 | コード。使うべき道具を呼んだか |
+| 引き継ぎ | コード。引き継ぐべき質問で正しい部署に引き継いだか、引き継がなくてよい質問で引き継いでいないか |
+| 出典 | コード。根拠の文書のファイル名を答えに添えたか |
+
+26問で、Nova 2 Lite の呼び出しが26回と、Jev のリクエストが52回です。トレースは Langfuse にも届きます。
 
 ## テスト
 
 ```bash
-uv run pytest                     # 道具と取り込みスクリプトの単体テスト（AWS の応答は botocore の Stubber で差し替える）
+uv run pytest                     # 道具・取り込みスクリプト・採点の部品の単体テスト（AWS の応答は botocore の Stubber で差し替える）
 (cd agentcore/cdk && npx jest)    # CDK のテスト
 ```
 
@@ -362,7 +383,10 @@ docs/corpus-design.md             規程の設計、罠の一覧、改定の演�
 evals/rules.py                    コードで測れるもの
 evals/jev_judge.py                Jev に採点させる
 evals/run.py                      トレースを取る → 採点する → スコアを書き戻す
-tests/                            道具と取り込みスクリプトの単体テスト
+evals/dataset.jsonl               正解つきの質問集（26問）
+evals/dataset.py                  質問集を読み、コードで測れるものを測る
+evals/run_dataset.py              質問集をエージェントに流して採点する
+tests/                            道具・取り込みスクリプト・採点の部品の単体テスト
 scripts/deploy.sh                 cdkd でデプロイし、続けて規程を取り込む
 scripts/ingest_policies.py        規程を KB に取り込み、終わるまで待つ
 agentcore/agentcore.json          AgentCore CLI の設定
