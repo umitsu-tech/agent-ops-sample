@@ -65,6 +65,7 @@ def test_extract_tool_calls_pairs_uses_with_results():
     assert calls[0]["output"] == '{"results": []}'
     assert calls[1]["input"]["department"] == "経理"
     assert calls[1]["output"] == '{"escalated_to": "経理部"}'
+    assert calls[1]["status"] == "success"
 
 
 ITEM = {
@@ -96,6 +97,27 @@ def test_score_by_code(answer, escalate_to, sources, expected):
     assert scores["tools_ok"] is True
     assert (scores["escalation_ok"], scores["citation_ok"]) == expected
     assert scores["escalated_to"] == ["経理"]
+
+
+def _escalation(department: str, status: str) -> dict:
+    return {"name": "escalate", "input": {"department": department}, "output": "", "status": status}
+
+
+@pytest.mark.parametrize(
+    ("calls", "expected"),
+    [
+        # 部署の名前を間違えて失敗し、言い直して経理に引き継いだ
+        ([_escalation("経理部", "error"), _escalation("経理", "success")], True),
+        # 引き継ぎが失敗したまま
+        ([_escalation("経理", "error")], False),
+        # 経理に加えて人事にも引き継いだ
+        ([_escalation("経理", "success"), _escalation("人事", "success")], False),
+    ],
+)
+def test_escalation_counts_only_successful_calls_to_expected_departments(calls, expected):
+    scores = dataset.score_by_code(ITEM, "精算できません", calls)
+
+    assert scores["escalation_ok"] is expected
 
 
 def test_summarize_skips_unmeasured_and_failed_rows():

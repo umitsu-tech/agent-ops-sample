@@ -39,25 +39,32 @@ def extract_tool_calls(messages: list[dict]) -> list[dict]:
     """Strands のメッセージ列から、道具の呼び出しを呼んだ順に取り出す。
 
     呼び出し（toolUse）は assistant のメッセージに、結果（toolResult）は user のメッセージに入っている。
-    toolUseId で突き合わせて、名前・引数・結果を1つにまとめる。
+    toolUseId で突き合わせて、名前・引数・結果・成否（success / error）を1つにまとめる。
+    引数が道具の定義に合わないときも、Strands は status を error にして結果を返す。
     """
     calls: dict[str, dict] = {}
     for message in messages:
         for block in message.get("content", []):
             if "toolUse" in block:
                 use = block["toolUse"]
-                calls[use["toolUseId"]] = {"name": use["name"], "input": use.get("input", {}), "output": ""}
+                calls[use["toolUseId"]] = {"name": use["name"], "input": use.get("input", {}), "output": "", "status": ""}
             elif "toolResult" in block:
                 result = block["toolResult"]
                 if result["toolUseId"] in calls:
                     calls[result["toolUseId"]]["output"] = _content_text(result.get("content", []))
+                    calls[result["toolUseId"]]["status"] = result.get("status", "")
     return list(calls.values())
 
 
 def score_by_code(item: dict, answer: str, tool_calls: list[dict]) -> dict:
     """コードで測れるものを測る。測らない観点は None にする。"""
     names = [call["name"] for call in tool_calls]
-    departments = [call["input"].get("department", "") for call in tool_calls if call["name"] == "escalate"]
+    # 失敗した引き継ぎ（存在しない部署を渡したなど）は、引き継いだことにしない
+    departments = [
+        call["input"].get("department", "")
+        for call in tool_calls
+        if call["name"] == "escalate" and call["status"] == "success"
+    ]
     return {
         "tools_ok": called_expected_tools(names, item["tools"]),
         "escalation_ok": None

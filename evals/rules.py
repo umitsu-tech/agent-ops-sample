@@ -32,12 +32,13 @@ def called_expected_tools(tool_names: list[str], expected: list[str]) -> bool:
 def escalated_as_expected(departments: list[str], expected: list[str]) -> bool:
     """引き継ぐべきときに、正しい部署へ引き継いだか。
 
-    departments は escalate を呼んだときの引き継ぎ先の一覧。expected が空なら、引き継がないのが正しい。
+    departments は escalate が成功したときの引き継ぎ先の一覧。expected が空なら、引き継がないのが正しい。
+    正しい部署に加えて別の部署にも引き継いだときは、誤りにする。
     引き継ぎ先がどれでもよい質問は、呼び出す側で判定から外す。
     """
     if not expected:
         return not departments
-    return any(department in expected for department in departments)
+    return bool(departments) and all(department in expected for department in departments)
 
 
 def cited_expected_source(answer: str, expected_sources: list[str]) -> bool:
