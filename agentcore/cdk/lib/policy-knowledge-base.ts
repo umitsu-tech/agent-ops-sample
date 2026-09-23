@@ -64,7 +64,7 @@ export class PolicyKnowledgeBase extends Construct {
     });
 
     // data/policies をバケットの policies/ にそのまま置く。消したファイルはバケットからも消す（prune）
-    new s3deploy.BucketDeployment(this, 'DeployDocs', {
+    const deployment = new s3deploy.BucketDeployment(this, 'DeployDocs', {
       sources: [s3deploy.Source.asset(props.sourceDir)],
       destinationBucket: this.docsBucket,
       destinationKeyPrefix: DOCS_PREFIX,
@@ -146,6 +146,12 @@ export class PolicyKnowledgeBase extends Construct {
     // KB を作るときに埋め込みモデルとインデックスへの権限が確かめられる。ロールのポリシーは
     // 別リソースとして並行に作られるため、ポリシーが付いてから KB を作るよう順番を決めておく
     knowledgeBase.node.addDependency(role);
+    // ロールを作った直後に KB を作ると、ロールがまだ反映されておらず「was unable to assume the given role」で失敗する。
+    // cdkd（0.290.49）はこの文言を IAM の反映待ちとして再試行しないので、ロール → 規程のアップロード → KB の順に作り、
+    // アップロード（Lambda を作って動かすので数十秒かかる）のあいだにロールを反映させる。
+    // 時間で稼ぐやり方なので保証ではない。cdkd がこの文言を再試行するようになれば要らない
+    deployment.node.addDependency(role);
+    knowledgeBase.node.addDependency(deployment);
 
     const dataSource = new bedrock.CfnDataSource(this, 'DataSource', {
       knowledgeBaseId: knowledgeBase.attrKnowledgeBaseId,

@@ -40,6 +40,7 @@
 - `agentcore/cdk` で `npx cdk` を実行すると、aws-cdk の CLI ではなくアプリ自身が動く（`package.json` の bin 名が `cdk`）。CDK の CLI は `./node_modules/.bin/cdk` で呼ぶ
 - cdkd は `agentcore/cdk` をカレントにして動かす。`aws-targets.json` は自分で書く（`agentcore deploy` だけが自動で書く）。`cdkd diff` はステートバケットが要るので `cdkd bootstrap` の後。cdkd で作った Runtime は `agentcore invoke` / `status` から見えない（CLI は `.cli/deployed-state.json` を見る）ので、AWS CLI で呼ぶ
 - S3 Vectors の VectorBucket は、cdkd では名前が必須（CloudFormation のような自動命名が無い）。`Ref` もバケット名を返すので、ARN は `attrVectorBucketArn` で取る
+- cdkd（0.290.49）は、KB を作るときの `Bedrock Knowledge Base was unable to assume the given role` を IAM の反映待ちとして再試行しない（覚えている文言は `is unable to assume the role` など）。ロールを作った数秒後に KB を作ると1回で失敗し、スタックごとロールバックされる。KB を規程のアップロード（BucketDeployment）のあとに作る依存を足して避けた（Issue #7）
 - BucketDeployment の Lambda のロググループは、CDK の既定では Retain（731日）。スタックと一緒に消えるよう Aspect で DESTROY にしている
 
 ## 現在の状況
@@ -52,7 +53,8 @@
   - 手元で確かめたこと: 道具と取り込みスクリプトの単体テスト（botocore の Stubber）、CDK のテスト、`cdkd synth`（20リソース、テンプレートとアセットに鍵が入っていないこと）、`agentcore validate`、検索を手元の簡易検索に差し替えた Nova 2 Lite での会話（罠 1 と 5 で実際に誤答が出た）
   - まだ: AWS へのデプロイ（`cdkd bootstrap` / `scripts/deploy.sh`）、本物の KB での検索と取り込み、Runtime の呼び出し、新しいトレースでの採点
 - 対応済み: 2026-09-23 に `agentcore deploy` した Runtime の zip に `.env` が入っていた。CDK のアセット用バケット（`cdk-hnb659fds-assets-<アカウントID>-us-east-1`）の zip（1バージョンのみ）、手元の一時 zip、`agentcore/cdk/cdk.out` の写しは削除した。鍵は入れ替えない（個人アカウントの非公開バケットに約40分置かれていただけのため）
-- 次の一歩: 罠の設計（`docs/corpus-design.md`）をリュウキと詰め、デプロイの OK をもらう。そのあと README の手順で `cdkd bootstrap` → `cdkd diff` → `scripts/deploy.sh`（デプロイと取り込み）→ 呼び出し → Langfuse で確認 → 採点
+- デプロイ済み（2026-09-23、cdkd、us-east-1）: `cdkd bootstrap` のあと `scripts/deploy.sh` で20リソースを作り、規程25本の取り込みが COMPLETE。Runtime に1問投げて答えが返り、Langfuse にトレース（6件）が届いた。SSM パラメータ `/agent-ops-sample/langfuse` も置き直した。片付けは README の「片付ける」
+- 次の一歩: 正解つきの質問集での採点（Issue #5）と、本番のトレースに掛ける観点の見直し（Issue #6）
 - その次: 罠の表を正解つきの質問集にして、正しさ・引き継ぎ・出典の採点を足す。評価の観点（道具の選択と引数を分ける、セッション単位の用件達成、回答の関連性）も見直す。改定の演習（`docs/corpus-design.md`）を行う
 - 未着手: 本文の執筆
 
