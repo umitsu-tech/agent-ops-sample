@@ -25,6 +25,7 @@ FIELDS = "core,basic,io"
 SCORE_GROUNDED = "根拠"
 SCORE_TOOL_CHOICE = "道具の選択"
 LOOKBACK_HOURS = 2
+TOOL_OUTPUT_LIMIT = 6000
 
 
 def _as_text(value) -> str:
@@ -51,7 +52,7 @@ def _as_text(value) -> str:
 
 
 def _first_user_message(generation_input) -> str:
-    """モデルに渡したメッセージ列から、お客さまの発言を拾う。"""
+    """モデルに渡したメッセージ列から、社員の質問を拾う。"""
     raw = generation_input
     if isinstance(raw, str):
         try:
@@ -80,7 +81,10 @@ def collect_turns(client, hours: int = LOOKBACK_HOURS) -> dict[str, dict]:
     for observation in sorted(response.data, key=lambda o: o.start_time):
         bucket = grouped[observation.trace_id]
         if observation.type == "TOOL":
-            bucket["tools"].append({"name": observation.name, "output": _as_text(observation.output)[:400]})
+            # 規程の検索は抜粋を何件も返す。短く切ると根拠の採点で「検索結果に無い」と誤判定されるので長めに残す
+            bucket["tools"].append(
+                {"name": observation.name, "output": _as_text(observation.output)[:TOOL_OUTPUT_LIMIT]}
+            )
         elif observation.type == "GENERATION":
             if not bucket["question"]:
                 bucket["question"] = _first_user_message(observation.input)
@@ -149,7 +153,7 @@ def main() -> None:
             skipped += 1
             continue
 
-        conversation = f"お客さま: {turn['question']}\n担当者: {turn['answer']}"
+        conversation = f"社員: {turn['question']}\n担当者: {turn['answer']}"
         tool_calls = json.dumps(turn["tools"], ensure_ascii=False)
         verdict = judge(conversation, tool_calls)
 

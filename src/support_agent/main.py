@@ -1,6 +1,6 @@
 """コマンドラインから問い合わせを1回投げる。
 
-uv run python -m support_agent.main "注文した商品がまだ届きません。注文番号は A-1002 です"
+uv run python -m support_agent.main "G4 で大阪に出張します。1泊いくらまでのホテルに泊まれますか"
 """
 
 import sys
@@ -15,7 +15,7 @@ from langfuse import get_client  # noqa: E402
 
 from .agent import build_agent  # noqa: E402
 
-DEFAULT_QUESTION = "注文した商品がまだ届きません。注文番号は A-1002 です"
+DEFAULT_QUESTION = "G4 で大阪に出張します。1泊いくらまでのホテルに泊まれますか"
 
 
 def main() -> None:

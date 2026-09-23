@@ -4,7 +4,7 @@
 """
 
 
-def answered_within_limit(answer: str, max_sentences: int = 3) -> bool:
+def answered_within_limit(answer: str, max_sentences: int = 5) -> bool:
     """答えが約束した長さに収まっているか。"""
     return answer.count("。") <= max_sentences
 

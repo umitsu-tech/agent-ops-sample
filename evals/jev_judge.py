@@ -12,18 +12,21 @@ ENDPOINT = "https://api.typesafe.ai/v1/systemone"
 MODEL = "jev-latest"
 
 GROUNDED = (
-    "The assistant answered a customer using information from the tools it called. "
+    "The assistant answered an employee's question about company policies using the tools it called. "
+    "The tool results contain the policy excerpts it retrieved. "
     "Is every claim in the answer supported by the tool results? "
-    "It is supported when the answer only states what the tool results contain, "
-    "and unsupported when the answer adds details that do not appear in them."
+    "It is supported when the answer only states what the retrieved excerpts contain, "
+    "and unsupported when the answer adds amounts, days, conditions or exceptions that do not appear in them, "
+    "or applies a rule to a case the excerpts exclude."
 )
 
 TOOL_CHOICE = (
-    "Look at which tool the assistant called for this customer message. "
-    "Was that the right tool? "
-    "search_faq is for general questions about shipping, returns, payment and cancellation. "
-    "get_order_status is for questions about a specific order number. "
-    "escalate is for refunds, product defects and complaints that must not be judged on the spot."
+    "Look at which tools the assistant called for this employee message. "
+    "Were those the right tools? "
+    "search_policies is for questions about company rules such as leave, remote work, travel, expenses and IT. "
+    "get_application_status is for questions about a specific application number such as EX-2026-0412. "
+    "escalate is for judgments about individual cases (leave of absence, side jobs, harassment, late expenses, "
+    "exceptions to a rule) and for matters the policies do not cover."
 )
 
 
@@ -51,8 +54,8 @@ def judge(conversation: str, tool_calls: str) -> dict:
                     "type": "choice",
                     "instructions": TOOL_CHOICE,
                     "criteria": {
-                        "correct": "The tool matches what the customer asked about.",
-                        "wrong": "Another tool would have been the right one.",
+                        "correct": "The tools match what the employee asked about.",
+                        "wrong": "Another tool would have been the right one, or a needed tool was not called.",
                     },
                 },
             },
