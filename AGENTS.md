@@ -53,10 +53,10 @@
   - 済み: 規程25本と罠の設計（`docs/corpus-design.md`）、道具3つ、システムプロンプト、KB（S3 Vectors）一式の CDK、取り込みとデプロイのスクリプト、Runtime の zip から `.env` を外す対応、evals の最小限の手直し、README
   - 手元で確かめたこと: 道具と取り込みスクリプトの単体テスト（botocore の Stubber）、CDK のテスト、`cdkd synth`（20リソース、テンプレートとアセットに鍵が入っていないこと）、`agentcore validate`、検索を手元の簡易検索に差し替えた Nova 2 Lite での会話（罠 1 と 5 で実際に誤答が出た）
 - 対応済み: 2026-09-23 に `agentcore deploy` した Runtime の zip に `.env` が入っていた。CDK のアセット用バケット（`cdk-hnb659fds-assets-<アカウントID>-us-east-1`）の zip（1バージョンのみ）、手元の一時 zip、`agentcore/cdk/cdk.out` の写しは削除した。鍵は入れ替えない（個人アカウントの非公開バケットに約40分置かれていただけのため）
-- デプロイ済み（2026-09-23、cdkd、us-east-1）: `cdkd bootstrap` のあと `scripts/deploy.sh` で20リソースを作り、規程25本の取り込みが COMPLETE。Runtime に1問投げて答えが返り、Langfuse にトレース（6件）が届いた。SSM パラメータ `/agent-ops-sample/langfuse` も置き直した。片付けは README の「片付ける」
+- 片付け済み（2026-09-23）: デプロイして質問集を流したあと、構成（原稿のアウトライン）が固まるまで動かさないことにして、`cdkd destroy` でスタック（20リソース）を消した。スタックの外に残ったロググループ3つと SSM パラメータ `/agent-ops-sample/langfuse` も消した。cdkd の状態用・アセット用のバケットと空の ECR は残している。戻すときは、README の「Langfuse の鍵を SSM Parameter Store に置く」→ `agentcore/aws-targets.json` を書く → `scripts/deploy.sh`。KB の ID が変わるので、手元の `.env` の `KNOWLEDGE_BASE_ID` をデプロイの出力（`PolicyKnowledgeBaseId`）で書き直す。Langfuse のトレースと `results/` は残っている
 - 完了（Issue #5、PR #9。2026-09-23 にマージ済み）: 罠の表を規程と突き合わせて直し（規程4本、質問と答え7件）、正解つきの質問集と採点（`evals/run_dataset.py`）を作った。デプロイした KB で2回流し、2回目（今の質問集）は正しさ 20/26、道具 25/26、道具の引数 22/26、引き継ぎ 19/25、出典 3/25、用件の達成 22/26、根拠の平均 0.72。回によって合否が入れ替わる問いがある（`docs/corpus-design.md` の「質問集での採点」）
 - 完了（Issue #6、PR #10。2026-09-23 にマージ済み）: `evals/run.py` の観点に、道具の引数（correct / wrong / no_tool）と用件の達成（noul と choice）を足し、道具の選択と分けた。付いていないスコアだけを書き戻す。トレースから道具の引数も取る
-- 次の一歩: 引き継ぎと出典が守られていないので、システムプロンプトを直す前後を質問集で比べる（4.2 の題材）
+- 次の一歩: 原稿のアウトライン（agent-ops-chapter の PR #4）が固まったら、デプロイし直して、システムプロンプトの引き継ぎと出典の指示を直す前後を質問集で比べる（4.2 の題材）。それまでは Nova と Jev を回さない（2026-09-23 リュウキ）
 - その次: 改定の演習（`docs/corpus-design.md`）。答えの関連性はまだ測っていない
 - 未着手: 本文の執筆
 

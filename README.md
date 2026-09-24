@@ -217,7 +217,11 @@ aws s3vectors delete-index --vector-bucket-name agentcore-agentopssample-default
 aws s3vectors delete-vector-bucket --vector-bucket-name agentcore-agentopssample-default-policies
 ```
 
-スタックとは別に、呼び出したときに作られる CloudWatch Logs のロググループ（`/aws/bedrock-agentcore/runtimes/<RuntimeId>-DEFAULT` と、バケットを空にする Lambda の `/aws/lambda/...`）が残ります。要らなければ消してください。
+スタックとは別に、CloudWatch Logs のロググループが3つ残ります。Runtime の `/aws/bedrock-agentcore/runtimes/<RuntimeId>-DEFAULT`、バケットを空にする Lambda の `/aws/lambda/...CustomS3AutoDeleteObje...`、規程をアップロードする Lambda の `/aws/lambda/...CustomCDKBucketDeploym...` です。最後の1つはスタックに入っていますが、cdkd がロググループを消したあとにカスタムリソースの削除で Lambda が動き、同じ名前で作り直されます。要らなければ消してください。
+
+```bash
+aws logs describe-log-groups --query "logGroups[?contains(logGroupName,'agentopssample') || contains(logGroupName,'AgentCore-agentops')].logGroupName" --output text
+```
 
 cdkd 自身のバケットと ECR リポジトリも消すときは、次を実行します。
 
