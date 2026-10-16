@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# langfuse を先に読み込むと、トレースの送信先がここで決まる
+# get_client() で Langfuse のクライアントを作ると、トレースの送信先が決まる（main() の中で呼ぶ）
 # Strands は既にある送信先をそのまま使うので、エージェント側のコードには何も足さなくてよい
 from langfuse import get_client  # noqa: E402
 
