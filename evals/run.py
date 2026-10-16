@@ -23,8 +23,8 @@ from jev_judge import judge  # noqa: E402
 FIELDS = "core,basic,io"
 # Langfuse の画面にそのまま並ぶ名前。日本語にしておくと読み返すときに楽
 SCORE_GROUNDED = "根拠"
-SCORE_TOOL_CHOICE = "道具の選択"
-SCORE_TOOL_ARGS = "道具の引数"
+SCORE_TOOL_CHOICE = "ツールの選択"
+SCORE_TOOL_ARGS = "ツールの引数"
 SCORE_GOAL = "用件の達成"
 SCORE_NAMES = [SCORE_GROUNDED, SCORE_TOOL_CHOICE, SCORE_TOOL_ARGS, SCORE_GOAL]
 LOOKBACK_HOURS = 2
@@ -84,7 +84,7 @@ def collect_turns(client, hours: int = LOOKBACK_HOURS) -> dict[str, dict]:
     for observation in sorted(response.data, key=lambda o: o.start_time):
         bucket = grouped[observation.trace_id]
         if observation.type == "TOOL":
-            # 引数は、道具の引数の採点に使う。Strands は引数を JSON の文字列で残すので、辞書に戻しておく
+            # 引数は、ツールの引数の採点に使う。Strands は引数を JSON の文字列で残すので、辞書に戻しておく
             arguments = _as_text(observation.input)
             try:
                 arguments = json.loads(arguments)
@@ -125,7 +125,7 @@ def save_results(rows: list[dict]) -> None:
         json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8"
     )
 
-    header = "| 質問 | 呼んだ道具 | 根拠 | 道具の選択 | 道具の引数 | 用件の達成 |"
+    header = "| 質問 | 呼んだツール | 根拠 | ツールの選択 | ツールの引数 | 用件の達成 |"
     lines = [header, "|---|---|---|---|---|---|"]
     for row in rows:
         lines.append(
@@ -221,7 +221,7 @@ def main() -> None:
         print(
             f"{trace_id[:12]}  {turn['question'][:28]:<30} "
             f"根拠 {verdict['grounded']:.2f}({verdict['grounded_verdict']}) "
-            f"道具 {verdict['tool_choice']}({verdict['tool_choice_confidence']}) "
+            f"ツール {verdict['tool_choice']}({verdict['tool_choice_confidence']}) "
             f"引数 {verdict['tool_args']}({verdict['tool_args_confidence']}) "
             f"用件 {verdict['goal']:.2f}({verdict['goal_verdict']})"
         )

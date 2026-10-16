@@ -5,7 +5,7 @@
 - question: 社員の質問
 - reference: 規程どおりの答え。Jev に正しさを採点させるときの正解
 - sources: 答えに添えるべき文書のファイル名（どれか1つでよい）。空なら出典は測らない
-- tools: 呼ぶべき道具
+- tools: 呼ぶべきツール
 - escalate_to: 引き継ぐべき部署（どれか1つでよい）。空なら引き継がないのが正しい。null なら引き継ぎは測らない
 """
 
@@ -25,7 +25,7 @@ def load_dataset(path: Path = DATASET_PATH) -> list[dict]:
 
 
 def _content_text(content: list[dict]) -> str:
-    """道具の結果の content を1つの文字列にする。"""
+    """ツールの結果の content を1つの文字列にする。"""
     parts = []
     for block in content:
         if "text" in block:
@@ -36,11 +36,11 @@ def _content_text(content: list[dict]) -> str:
 
 
 def extract_tool_calls(messages: list[dict]) -> list[dict]:
-    """Strands のメッセージ列から、道具の呼び出しを呼んだ順に取り出す。
+    """Strands のメッセージ列から、ツールの呼び出しを呼んだ順に取り出す。
 
     呼び出し（toolUse）は assistant のメッセージに、結果（toolResult）は user のメッセージに入っている。
     toolUseId で突き合わせて、名前・引数・結果・成否（success / error）を1つにまとめる。
-    引数が道具の定義に合わないときも、Strands は status を error にして結果を返す。
+    引数がツールの定義に合わないときも、Strands は status を error にして結果を返す。
     """
     calls: dict[str, dict] = {}
     for message in messages:
@@ -77,9 +77,9 @@ def score_by_code(item: dict, answer: str, tool_calls: list[dict]) -> dict:
 
 
 def tool_args_ok(tool_calls: list[dict], verdict: str | None) -> bool | None:
-    """道具の引数が合っていたか。道具を呼んだかどうかは、Jev ではなく実際の呼び出しで決める。
+    """ツールの引数が合っていたか。ツールを呼んだかどうかは、Jev ではなく実際の呼び出しで決める。
 
-    道具を呼んでいなければ測らない（None）。呼んでいるのに Jev が no_tool と答えたときは、合格にしない。
+    ツールを呼んでいなければ測らない（None）。呼んでいるのに Jev が no_tool と答えたときは、合格にしない。
     """
     if not tool_calls:
         return None
@@ -92,7 +92,7 @@ def conversation_for_judge(question: str, answer: str) -> str:
 
 
 def tool_calls_for_judge(tool_calls: list[dict]) -> str:
-    """Jev に渡す道具の呼び出しの形にする（evals/run.py と同じ形）。検索の抜粋は長いので切る。"""
+    """Jev に渡すツールの呼び出しの形にする（evals/run.py と同じ形）。検索の抜粋は長いので切る。"""
     return json.dumps(
         [
             {"name": call["name"], "input": call["input"], "output": call["output"][:TOOL_OUTPUT_LIMIT]}
@@ -113,8 +113,8 @@ def summarize(rows: list[dict]) -> dict:
     grounded = [row["grounded"] for row in scored if row.get("grounded") is not None]
     return {
         "正しさ": count("correct_ok"),
-        "道具": count("tools_ok"),
-        "道具の引数": count("tool_args_ok"),
+        "ツール": count("tools_ok"),
+        "ツールの引数": count("tool_args_ok"),
         "引き継ぎ": count("escalation_ok"),
         "出典": count("citation_ok"),
         "用件の達成": count("goal_ok"),

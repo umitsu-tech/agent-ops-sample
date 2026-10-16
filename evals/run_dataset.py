@@ -1,6 +1,6 @@
 """正解つきの質問集（evals/dataset.jsonl）をエージェントに流し、採点して results/ に残す。
 
-プロンプトやモデル、道具の説明を変えたときに、同じ質問で前後を比べるために使う（オフラインの評価）。
+プロンプトやモデル、ツールの説明を変えたときに、同じ質問で前後を比べるために使う（オフラインの評価）。
 本番のトレースを正解なしで採点するのは evals/run.py。
 
 手元のエージェント（main.py と同じもの）に、1問ずつ新しい会話で投げる。
@@ -43,7 +43,7 @@ RESULTS_DIR = Path(__file__).resolve().parents[1] / "results"
 
 
 def ask(question: str) -> tuple[str, list[dict]]:
-    """1問を新しい会話で投げ、答えと道具の呼び出しを返す。"""
+    """1問を新しい会話で投げ、答えとツールの呼び出しを返す。"""
     agent = build_agent(today=ASKED_ON)
     result = agent(question)
     return str(result).strip(), extract_tool_calls(agent.messages)
@@ -91,7 +91,7 @@ def save_results(rows: list[dict], summary: dict) -> None:
             lines.append(f"- {name}: {value:.2f}" if isinstance(value, float) else f"- {name}: {value}")
     lines += [
         "",
-        "| # | 種類 | 質問 | 正しさ | 根拠 | 道具 | 道具の引数 | 引き継ぎ | 出典 | 用件の達成 |",
+        "| # | 種類 | 質問 | 正しさ | 根拠 | ツール | ツールの引数 | 引き継ぎ | 出典 | 用件の達成 |",
         "|---|---|---|---|---|---|---|---|---|---|",
     ]
     for row in rows:
@@ -136,7 +136,7 @@ def main(argv: list[str] | None = None) -> None:
         else:
             print(
                 f"{row['id']}  正しさ {_mark(row['correct_ok'])} {row['correct']:.2f}  根拠 {row['grounded']:.2f}  "
-                f"道具 {_mark(row['tools_ok'])}  引き継ぎ {_mark(row['escalation_ok'])}  出典 {_mark(row['citation_ok'])}"
+                f"ツール {_mark(row['tools_ok'])}  引き継ぎ {_mark(row['escalation_ok'])}  出典 {_mark(row['citation_ok'])}"
             )
         rows.append(row)
 

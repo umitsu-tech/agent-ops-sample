@@ -1,4 +1,4 @@
-"""道具の単体テスト。AWS には繋がず、botocore の Stubber で Retrieve の応答を差し替える。
+"""ツールの単体テスト。AWS には繋がず、botocore の Stubber で Retrieve の応答を差し替える。
 
 uv run pytest
 """
@@ -38,7 +38,7 @@ RETRIEVE_RESPONSE = {
 
 @pytest.fixture
 def stubbed_client(monkeypatch):
-    """Retrieve を差し替えたクライアントを道具に使わせる。"""
+    """Retrieve を差し替えたクライアントをツールに使わせる。"""
     client = boto3.client(
         "bedrock-agent-runtime",
         region_name="us-east-1",

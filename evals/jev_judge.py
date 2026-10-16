@@ -102,7 +102,7 @@ def judge(conversation: str, tool_calls: str) -> dict:
                     "wrong": "Another tool would have been the right one, or a needed tool was not called.",
                 },
             },
-            # 道具を呼んでいないと引数は判定できない。Jev は棄権できないので、その選択肢を用意しておく
+            # ツールを呼んでいないと引数は判定できない。Jev は棄権できないので、その選択肢を用意しておく
             "toolArgs": {
                 "type": "choice",
                 "instructions": TOOL_ARGS,
@@ -141,7 +141,7 @@ def judge(conversation: str, tool_calls: str) -> dict:
 def judge_correctness(question: str, reference: str, answer: str) -> dict:
     """答えが正解（規程どおりの答え）と合っているかを採点する。
 
-    道具の結果は渡さない。正しさは正解との突き合わせだけで決まるので、判断に要らないものを混ぜないようにする。
+    ツールの結果は渡さない。正しさは正解との突き合わせだけで決まるので、判断に要らないものを混ぜないようにする。
     """
     answers = _ask(
         {"question": question, "reference_answer": reference, "assistant_answer": answer},
