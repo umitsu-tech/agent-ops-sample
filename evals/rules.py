@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 def answered_within_limit(answer: str, max_sentences: int = 5) -> bool:
-    """答えが約束した長さに収まっているか。"""
+    """答えが約束した長さに収まっているか"""
     return answer.count("。") <= max_sentences
 
 
@@ -20,12 +20,12 @@ def used_any_tool(tool_names: list[str]) -> bool:
 
 
 def escalated_without_reason(tool_names: list[str], reason: str | None) -> bool:
-    """理由を書かずに引き継いでいないか。"""
+    """理由を書かずに引き継いでいないか"""
     return "escalate" in tool_names and not (reason or "").strip()
 
 
 def called_expected_tools(tool_names: list[str], expected: list[str]) -> bool:
-    """使うべきツールをすべて呼んだか。"""
+    """使うべきツールをすべて呼んだか"""
     return all(name in tool_names for name in expected)
 
 
