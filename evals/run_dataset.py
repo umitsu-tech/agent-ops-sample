@@ -91,7 +91,7 @@ def save_results(rows: list[dict], summary: dict) -> None:
             lines.append(f"- {name}: {value:.2f}" if isinstance(value, float) else f"- {name}: {value}")
     lines += [
         "",
-        "| # | 種類 | 質問 | 正しさ | 根拠 | 道具 | 道具の引数 | 引き継ぎ | 出典 | 用件の達成 |",
+        "| # | 種類 | 質問 | 正しさ | 根拠 | ツール | ツールの引数 | 引き継ぎ | 出典 | 用件の達成 |",
         "|---|---|---|---|---|---|---|---|---|---|",
     ]
     for row in rows:
@@ -136,7 +136,7 @@ def main(argv: list[str] | None = None) -> None:
         else:
             print(
                 f"{row['id']}  正しさ {_mark(row['correct_ok'])} {row['correct']:.2f}  根拠 {row['grounded']:.2f}  "
-                f"道具 {_mark(row['tools_ok'])}  引き継ぎ {_mark(row['escalation_ok'])}  出典 {_mark(row['citation_ok'])}"
+                f"ツール {_mark(row['tools_ok'])}  引き継ぎ {_mark(row['escalation_ok'])}  出典 {_mark(row['citation_ok'])}"
             )
         rows.append(row)
 

@@ -113,8 +113,8 @@ def summarize(rows: list[dict]) -> dict:
     grounded = [row["grounded"] for row in scored if row.get("grounded") is not None]
     return {
         "正しさ": count("correct_ok"),
-        "道具": count("tools_ok"),
-        "道具の引数": count("tool_args_ok"),
+        "ツール": count("tools_ok"),
+        "ツールの引数": count("tool_args_ok"),
         "引き継ぎ": count("escalation_ok"),
         "出典": count("citation_ok"),
         "用件の達成": count("goal_ok"),
