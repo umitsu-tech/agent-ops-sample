@@ -19,7 +19,7 @@ TOOLS = {"search_policies", "get_application_status", "escalate"}
 
 
 def test_dataset_points_to_existing_policies_and_known_values():
-    """質問集の番号・文書名・道具・引き継ぎ先が、実在するものを指しているか。"""
+    """質問集の番号・文書名・ツール・引き継ぎ先が、実在するものを指しているか。"""
     items = dataset.load_dataset()
     ids = [item["id"] for item in items]
     assert len(ids) == len(set(ids)) == 26
@@ -149,7 +149,7 @@ class _Observation:
 
 
 def test_collect_turns_keeps_tool_arguments():
-    """Langfuse の道具の観測データから、引数を辞書に戻して残す（道具の引数の採点に使う）。"""
+    """Langfuse のツールの観測データから、引数を辞書に戻して残す（ツールの引数の採点に使う）。"""
     import run
 
     tool_input = '[{"role":"tool","content":"{\\"department\\": \\"人事\\", \\"reason\\": \\"個別の判断\\"}","id":"t1"}]'
@@ -192,7 +192,7 @@ def test_tool_args_ok_uses_actual_calls(calls, verdict, expected):
 
 
 def test_missing_scores_lists_only_scores_not_yet_written():
-    """前の版で根拠と道具の選択だけを付けたトレースには、足した2つの観点だけを付ける。"""
+    """前の版で根拠とツールの選択だけを付けたトレースには、足した2つの観点だけを付ける。"""
     import run
 
     class _Score:

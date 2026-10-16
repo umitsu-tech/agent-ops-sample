@@ -84,7 +84,7 @@ def collect_turns(client, hours: int = LOOKBACK_HOURS) -> dict[str, dict]:
     for observation in sorted(response.data, key=lambda o: o.start_time):
         bucket = grouped[observation.trace_id]
         if observation.type == "TOOL":
-            # 引数は、道具の引数の採点に使う。Strands は引数を JSON の文字列で残すので、辞書に戻しておく
+            # 引数は、ツールの引数の採点に使う。Strands は引数を JSON の文字列で残すので、辞書に戻しておく
             arguments = _as_text(observation.input)
             try:
                 arguments = json.loads(arguments)

@@ -1,6 +1,6 @@
 """正解つきの質問集（evals/dataset.jsonl）をエージェントに流し、採点して results/ に残す。
 
-プロンプトやモデル、道具の説明を変えたときに、同じ質問で前後を比べるために使う（オフラインの評価）。
+プロンプトやモデル、ツールの説明を変えたときに、同じ質問で前後を比べるために使う（オフラインの評価）。
 本番のトレースを正解なしで採点するのは evals/run.py。
 
 手元のエージェント（main.py と同じもの）に、1問ずつ新しい会話で投げる。
@@ -43,7 +43,7 @@ RESULTS_DIR = Path(__file__).resolve().parents[1] / "results"
 
 
 def ask(question: str) -> tuple[str, list[dict]]:
-    """1問を新しい会話で投げ、答えと道具の呼び出しを返す。"""
+    """1問を新しい会話で投げ、答えとツールの呼び出しを返す。"""
     agent = build_agent(today=ASKED_ON)
     result = agent(question)
     return str(result).strip(), extract_tool_calls(agent.messages)

@@ -1,9 +1,9 @@
-"""エージェントに持たせる道具。
+"""エージェントに持たせるツール。
 
 規程の検索（search_policies）だけが AWS の Knowledge Bases を呼ぶ。申請の照会と引き継ぎは、モックのデータを引くだけ。
 
-docstring はそのままモデルに渡って、いつどの道具を使うかの判断材料になる。
-説明が雑だと道具の選択を間違えるので、運用では地味に効く部分。
+docstring はそのままモデルに渡って、いつどのツールを使うかの判断材料になる。
+説明が雑だとツールの選択を間違えるので、運用では地味に効く部分。
 """
 
 import json
@@ -44,7 +44,7 @@ def _top_k() -> int:
 def _to_chunk(result: dict) -> dict:
     """Retrieve の結果1件を、本文・スコア・出典だけの形に揃える。
 
-    この形がそのまま道具の結果としてトレースに残る。あとで「答えが検索結果に基づいているか」を
+    この形がそのままツールの結果としてトレースに残る。あとで「答えが検索結果に基づいているか」を
     採点するときの材料になるので、本文は切り詰めない。
     """
     uri = result.get("location", {}).get("s3Location", {}).get("uri") or result.get("metadata", {}).get(
@@ -110,7 +110,7 @@ def get_application_status(application_id: str) -> dict:
     return applications.get(key, {"error": f"申請番号 {application_id} は見つかりませんでした"})
 
 
-# 引き継ぎ先を列挙しておくと、道具の定義に選択肢として載り、モデルが存在しない部署を作りにくくなる
+# 引き継ぎ先を列挙しておくと、ツールの定義に選択肢として載り、モデルが存在しない部署を作りにくくなる
 Department = Literal["人事", "総務", "経理"]
 
 

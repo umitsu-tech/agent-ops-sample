@@ -11,7 +11,7 @@
 - インフラ: AgentCore CLI `@aws/agentcore` が生成した CDK アプリ（`agentcore/cdk`）。cdkd か `agentcore deploy` でデプロイする
 - 採点: TypeSafe AI の Jev
 
-道具は3つ。規程の検索（search_policies、KB の Retrieve を自前で呼ぶ）、申請の照会（get_application_status、`data/applications.json` のモック）、人事・総務・経理への引き継ぎ（escalate、モック）。規程は `data/policies/` の25本で、罠の一覧と改定の演習の段取りは `docs/corpus-design.md` にある。
+ツールは3つ。規程の検索（search_policies、KB の Retrieve を自前で呼ぶ）、申請の照会（get_application_status、`data/applications.json` のモック）、人事・総務・経理への引き継ぎ（escalate、モック）。規程は `data/policies/` の25本で、罠の一覧と改定の演習の段取りは `docs/corpus-design.md` にある。
 
 ## 決めていること
 
@@ -19,11 +19,11 @@
 - 待機中の固定費が出ない構成にする。ベクトルストアは S3 Vectors
 - KB は CDK に L1 で書く（`agentcore/cdk/lib/policy-knowledge-base.ts`）。AgentCore CLI 0.22.0 の `knowledgeBases` は MANAGED 型で、ベクトルストアを選べないため使わない
 - 規程の取り込み（StartIngestionJob）はスタックに入れず、デプロイのあとに `scripts/ingest_policies.py` でかける（`scripts/deploy.sh` が続けて呼ぶ）。取り込み中に次の取り込みを始めると `ConflictException` になるので、走っているものの完了を待ってから始め、終わるまで待つ。デプロイの途中で待つには自前の Lambda が要り、ランタイムの更新を抱えたくないのでスクリプトにした
-- strands-agents-tools の `retrieve` は非推奨なので使わない。自前の道具で、チャンクの本文・スコア・出典を道具の結果に載せ、トレースに残す（根拠の採点に使う）
+- strands-agents-tools の `retrieve` は非推奨なので使わない。自前のツールで、チャンクの本文・スコア・出典をツールの結果に載せ、トレースに残す（根拠の採点に使う）
 - Runtime の zip には `pyproject.toml`、`src/`、`data/applications.json` だけを入れる（`agentcore/cdk/lib/runtime-code.ts`）
 - システムプロンプトに今日の日付（JST）を入れる。規程に施行日があるため
 - 評価は Jev を主役にする。LLM-as-a-judge は他書でも扱われているため、そこでの困りごとを示す前振りとして短く扱う
-- 正解つきの質問集（`evals/dataset.jsonl`）は罠の表と1対1にする。正しさは Jev、道具・引き継ぎ・出典はコードで測る。質問した日は 2026-09-24 に固定する（施行日で答えが変わる質問があるため）
+- 正解つきの質問集（`evals/dataset.jsonl`）は罠の表と1対1にする。正しさは Jev、ツール・引き継ぎ・出典はコードで測る。質問した日は 2026-09-24 に固定する（施行日で答えが変わる質問があるため）
 - 採点結果は `results/` に残す。Langfuse の無料枠は保持30日で、原稿を書いている間に元データが消えるため
 - `results/` はリポジトリに含めない
 
@@ -31,7 +31,7 @@
 
 - `aws login` で認証している場合、boto3 から使うのに `botocore[crt]` が要る
 - Langfuse は 2026-09-16 以降に作られた組織だと旧 API が 410 になる。observations API v2 を使う
-- observations API は `fields="core,basic,io"` を指定しないと、道具の名前か入出力のどちらかが欠ける
+- observations API は `fields="core,basic,io"` を指定しないと、ツールの名前か入出力のどちらかが欠ける
 - 同じトレースを何度採点してもスコアが積み上がるので、付いているスコアは飛ばし、付いていない観点だけを書き戻す（観点を足したときに、前に採点したトレースへ足りない分だけ付けるため）
 - AgentCore Runtime は既定で ADOT を仕込むので、そのままだとトレースが Langfuse に届かない。`agentcore.json` の `instrumentation.enableOtel: false` と `DISABLE_ADOT_OBSERVABILITY=true` の両方で切る
 - `agentcore.json` の `envVars` は平文でコミットされ、テンプレートにも残る。Langfuse の鍵は SSM Parameter Store の SecureString（`/agent-ops-sample/langfuse`、JSON 1つ）に置き、`runtime.py` が起動時に読む。ロールに足すのはそのパラメータの `ssm:GetParameter` だけ（`aws/ssm` キーなので `kms:Decrypt` は不要）
@@ -46,16 +46,18 @@
 
 ## 現在の状況
 
-最終更新: 2026-09-23
+最終更新: 2026-10-16
 
 - 完了（Issue #1、PR #2。2026-09-23 にマージ済み）: AgentCore Runtime から Langfuse に送る配管。2026-09-23 に実機で1トレース届くことを確認し、スタック・SSM パラメータ・ロググループは削除済み
 - 完了（Issue #3、PR #4。2026-09-23 にマージ済み。Codex の指摘2件には、取り込みをスタックから外してスクリプトにする形で対応した）: 題材を社内規程の Q&A エージェントに作り直した
-  - 済み: 規程25本と罠の設計（`docs/corpus-design.md`）、道具3つ、システムプロンプト、KB（S3 Vectors）一式の CDK、取り込みとデプロイのスクリプト、Runtime の zip から `.env` を外す対応、evals の最小限の手直し、README
-  - 手元で確かめたこと: 道具と取り込みスクリプトの単体テスト（botocore の Stubber）、CDK のテスト、`cdkd synth`（20リソース、テンプレートとアセットに鍵が入っていないこと）、`agentcore validate`、検索を手元の簡易検索に差し替えた Nova 2 Lite での会話（罠 1 と 5 で実際に誤答が出た）
+  - 済み: 規程25本と罠の設計（`docs/corpus-design.md`）、ツール3つ、システムプロンプト、KB（S3 Vectors）一式の CDK、取り込みとデプロイのスクリプト、Runtime の zip から `.env` を外す対応、evals の最小限の手直し、README
+  - 手元で確かめたこと: ツールと取り込みスクリプトの単体テスト（botocore の Stubber）、CDK のテスト、`cdkd synth`（20リソース、テンプレートとアセットに鍵が入っていないこと）、`agentcore validate`、検索を手元の簡易検索に差し替えた Nova 2 Lite での会話（罠 1 と 5 で実際に誤答が出た）
 - 対応済み: 2026-09-23 に `agentcore deploy` した Runtime の zip に `.env` が入っていた。CDK のアセット用バケット（`cdk-hnb659fds-assets-<アカウントID>-us-east-1`）の zip（1バージョンのみ）、手元の一時 zip、`agentcore/cdk/cdk.out` の写しは削除した。鍵は入れ替えない（個人アカウントの非公開バケットに約40分置かれていただけのため）
 - 片付け済み（2026-09-23）: デプロイして質問集を流したあと、構成（原稿のアウトライン）が固まるまで動かさないことにして、`cdkd destroy` でスタック（20リソース）を消した。スタックの外に残ったロググループ3つと SSM パラメータ `/agent-ops-sample/langfuse` も消した。cdkd の状態用・アセット用のバケットと空の ECR は残している。戻すときは、README の「Langfuse の鍵を SSM Parameter Store に置く」→ `agentcore/aws-targets.json` を書く → `scripts/deploy.sh`。KB の ID が変わるので、手元の `.env` の `KNOWLEDGE_BASE_ID` をデプロイの出力（`PolicyKnowledgeBaseId`）で書き直す。Langfuse のトレースと `results/` は残っている
-- 完了（Issue #5、PR #9。2026-09-23 にマージ済み）: 罠の表を規程と突き合わせて直し（規程4本、質問と答え7件）、正解つきの質問集と採点（`evals/run_dataset.py`）を作った。デプロイした KB で2回流し、2回目（今の質問集）は正しさ 20/26、道具 25/26、道具の引数 22/26、引き継ぎ 19/25、出典 3/25、用件の達成 22/26、根拠の平均 0.72。回によって合否が入れ替わる問いがある（`docs/corpus-design.md` の「質問集での採点」）
-- 完了（Issue #6、PR #10。2026-09-23 にマージ済み）: `evals/run.py` の観点に、道具の引数（correct / wrong / no_tool）と用件の達成（noul と choice）を足し、道具の選択と分けた。付いていないスコアだけを書き戻す。トレースから道具の引数も取る
+- 完了（Issue #5、PR #9。2026-09-23 にマージ済み）: 罠の表を規程と突き合わせて直し（規程4本、質問と答え7件）、正解つきの質問集と採点（`evals/run_dataset.py`）を作った。デプロイした KB で2回流し、2回目（今の質問集）は正しさ 20/26、ツール 25/26、ツールの引数 22/26、引き継ぎ 19/25、出典 3/25、用件の達成 22/26、根拠の平均 0.72。回によって合否が入れ替わる問いがある（`docs/corpus-design.md` の「質問集での採点」）
+- 完了（Issue #6、PR #10。2026-09-23 にマージ済み）: `evals/run.py` の観点に、ツールの引数（correct / wrong / no_tool）と用件の達成（noul と choice）を足し、ツールの選択と分けた。付いていないスコアだけを書き戻す。トレースからツールの引数も取る
+- 作業中（Issue #13）: コメント・モデルに渡らない docstring・ドキュメントの「道具」を、原稿の表記に合わせて「ツール」にそろえた（2026-10-16）。システムプロンプト、Langfuse のスコア名（`道具の選択`、`道具の引数`）、結果の表の列名、質問集の種類名は、モデルの入力や出力の名前なので変えていない
+- 2026-09-23 の2回目の採点で、グリーン車（4）とモニター（15）の答えは「人事部へ引き継ぎます」と書きながら escalate を呼んでいなかった。`docs/corpus-design.md` の「2回目に人事部に引き継ぎ」は、文章の上だけの話
 - 次の一歩: 原稿のアウトライン（agent-ops-chapter の PR #4）が固まったら、デプロイし直して、システムプロンプトの引き継ぎと出典の指示を直す前後を質問集で比べる（4.2 の題材）。それまでは Nova と Jev を回さない（2026-09-23 リュウキ）
 - その次: 改定の演習（`docs/corpus-design.md`）。答えの関連性はまだ測っていない
 - 未着手: 本文の執筆

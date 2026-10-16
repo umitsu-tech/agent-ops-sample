@@ -12,7 +12,7 @@ def answered_within_limit(answer: str, max_sentences: int = 5) -> bool:
 
 
 def used_any_tool(tool_names: list[str]) -> bool:
-    """道具を1つも呼ばずに答えていないか。
+    """ツールを1つも呼ばずに答えていないか。
 
     何も呼ばずに答えているなら、モデルが記憶だけで答えた可能性がある。
     """
@@ -25,7 +25,7 @@ def escalated_without_reason(tool_names: list[str], reason: str | None) -> bool:
 
 
 def called_expected_tools(tool_names: list[str], expected: list[str]) -> bool:
-    """使うべき道具をすべて呼んだか。"""
+    """使うべきツールをすべて呼んだか。"""
     return all(name in tool_names for name in expected)
 
 
