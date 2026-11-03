@@ -67,8 +67,8 @@ CORRECT = (
 )
 
 
-def _ask(state: dict, questions: dict) -> dict:
-    """Jev に質問を投げて、質問ごとの答えを返す。"""
+def _ask(state: dict, questions: dict) -> tuple[dict, str]:
+    """Jev に質問を投げて、質問ごとの答えと、実際に答えたモデルの版を返す。"""
     api_key = os.environ["TYPESAFE_API_KEY"]
     response = httpx.post(
         ENDPOINT,
@@ -77,12 +77,14 @@ def _ask(state: dict, questions: dict) -> dict:
         timeout=30.0,
     )
     response.raise_for_status()
-    return response.json()["answers"]
+    body = response.json()
+    # jev-latest は新しい版が出ると指す先が変わるので、どの版が答えたかを結果に残す
+    return body["answers"], body["model"]
 
 
 def judge(conversation: str, tool_calls: str) -> dict:
     """1つのやりとりを採点して、観点ごとの結果を返す。"""
-    answers = _ask(
+    answers, model = _ask(
         {"conversation": conversation, "tool_calls": tool_calls},
         {
             "grounded": {"type": "noul", "instructions": GROUNDED},
@@ -135,6 +137,7 @@ def judge(conversation: str, tool_calls: str) -> dict:
         "goal": answers["goal"]["noul"],
         "goal_verdict": answers["goalVerdict"].get("choice"),
         "goal_confidence": answers["goalVerdict"].get("confidence"),
+        "jev_model": model,
     }
 
 
@@ -143,7 +146,7 @@ def judge_correctness(question: str, reference: str, answer: str) -> dict:
 
     ツールの結果は渡さない。正しさは正解との突き合わせだけで決まるので、判断に要らないものを混ぜないようにする。
     """
-    answers = _ask(
+    answers, model = _ask(
         {"question": question, "reference_answer": reference, "assistant_answer": answer},
         {
             "correct": {"type": "noul", "instructions": CORRECT},
@@ -162,4 +165,5 @@ def judge_correctness(question: str, reference: str, answer: str) -> dict:
         "correct": answers["correct"]["noul"],
         "correct_verdict": answers["correctVerdict"].get("choice"),
         "correct_confidence": answers["correctVerdict"].get("confidence"),
+        "correct_jev_model": model,
     }
