@@ -68,7 +68,7 @@ CORRECT = (
 
 
 def _ask(state: dict, questions: dict) -> tuple[dict, str]:
-    """Jev に質問を投げて、質問ごとの答えと、実際に答えたモデルの版を返す。"""
+    """Jev に質問を投げて、質問ごとの答えと、実際に答えたモデルのバージョンを返す。"""
     api_key = os.environ["TYPESAFE_API_KEY"]
     response = httpx.post(
         ENDPOINT,
@@ -78,7 +78,7 @@ def _ask(state: dict, questions: dict) -> tuple[dict, str]:
     )
     response.raise_for_status()
     body = response.json()
-    # jev-latest は新しい版が出ると指す先が変わるので、どの版が答えたかを結果に残す
+    # jev-latest は新しいバージョンが出ると指す先が変わるので、どのバージョンが答えたかを結果に残す
     return body["answers"], body["model"]
 
 

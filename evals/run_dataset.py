@@ -90,7 +90,7 @@ def save_results(rows: list[dict], summary: dict) -> None:
         elif value is not None:
             lines.append(f"- {name}: {value:.2f}" if isinstance(value, float) else f"- {name}: {value}")
     models = sorted({row[key] for row in rows for key in ("jev_model", "correct_jev_model") if row.get(key)})
-    lines.append(f"- Jev の版: {'、'.join(models) or 'なし'}")
+    lines.append(f"- Jev のバージョン: {'、'.join(models) or 'なし'}")
     lines += [
         "",
         "| # | 種類 | 質問 | 正しさ | 根拠 | ツール | ツールの引数 | 引き継ぎ | 出典 | 用件の達成 |",

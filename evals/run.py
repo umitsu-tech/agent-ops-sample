@@ -127,7 +127,7 @@ def save_results(rows: list[dict]) -> None:
 
     models = sorted({row["jev_model"] for row in rows})
     header = "| 質問 | 呼んだツール | 根拠 | ツールの選択 | ツールの引数 | 用件の達成 |"
-    lines = [f"Jev の版: {'、'.join(models)}", "", header, "|---|---|---|---|---|---|"]
+    lines = [f"Jev のバージョン: {'、'.join(models)}", "", header, "|---|---|---|---|---|---|"]
     for row in rows:
         lines.append(
             f"| {row['question']} | {'、'.join(row['tools']) or 'なし'} | "
