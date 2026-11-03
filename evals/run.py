@@ -125,8 +125,9 @@ def save_results(rows: list[dict]) -> None:
         json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8"
     )
 
+    models = sorted({row["jev_model"] for row in rows})
     header = "| 質問 | 呼んだツール | 根拠 | ツールの選択 | ツールの引数 | 用件の達成 |"
-    lines = [header, "|---|---|---|---|---|---|"]
+    lines = [f"Jev のバージョン: {'、'.join(models)}", "", header, "|---|---|---|---|---|---|"]
     for row in rows:
         lines.append(
             f"| {row['question']} | {'、'.join(row['tools']) or 'なし'} | "
