@@ -21,6 +21,8 @@
 
 規程は `data/policies/` にある25本の Markdown です。根拠のない答えが出やすいように、等級や条件で変わる金額、例外、施行日つきの改定、規程に書かれていない事項を仕込んでいます。一覧と狙いは [docs/corpus-design.md](docs/corpus-design.md) にあります。
 
+会社名（株式会社ほしぞら技研）、規程の文書、申請データは、すべてこのサンプルのために作った架空のものです。
+
 ## 用意するもの
 
 - Python 3.12 以降と [uv](https://docs.astral.sh/uv/)
@@ -420,4 +422,4 @@ agentcore/cdk/lib/runtime-code.ts Runtime の zip に入れるものを絞る
 
 ## ライセンス
 
-MIT
+MIT（[LICENSE](LICENSE)）
